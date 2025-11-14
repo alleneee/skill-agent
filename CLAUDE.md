@@ -230,9 +230,62 @@ uv run pytest tests/core/ -v -s
 4. **Token Overflow**: Already handled automatically by TokenManager, but configurable via `token_limit` parameter
 5. **Missing Logs**: Check `~/.fastapi-agent/log/` directory, ensure `enable_logging=True` in Agent constructor
 
+## Frontend Design Guidelines
+
+当需要生成前端界面时，请避免生成通用的、符合"分布和规律"的输出。这会造成用户所谓的"AI 味"同质风格。请创造富有创意、独具特色的前端界面，带来惊喜与愉悦。
+
+### 核心设计原则
+
+**1. 排版（Typography）**
+- 选择优美、独特且富有吸引力的字体
+- **避免**：Arial、Inter、Roboto、系统默认字体等通用字体
+- **推荐**：能提升整体视觉美感的特色字体
+- **警惕**：不要重复使用 Space Grotesk 等常见选择，突破既定模式至关重要
+
+**2. 色彩与主题（Color & Theme）**
+- 坚持统一的视觉美学风格，使用 CSS 变量确保一致性
+- 主导色搭配鲜明的点缀色，远胜于平淡、均匀分布的配色方案
+- **避免**：陈词滥调的配色方案（尤其是无亮点的蓝色系）
+- 可从 IDE 主题和文化美学中汲取灵感
+
+**3. 动效（Motion）**
+- 运用动画实现视觉体验与氛围变化
+- 优先使用纯 CSS 解决方案处理 HTML 元素
+- React 项目中，条件允许时优先选用 Motion 库
+- **关键**：聚焦于最有影响力的关键动效
+  - 一次精准编排、带有延迟层级呈现（animation-delay）的页面加载动画
+  - 远比零散的微交互更具沉浸性和愉悦感
+
+**4. 背景（Backgrounds）**
+- **避免**默认使用纯色背景
+- 营造氛围与层次感：
+  - CSS 纹理
+  - 几何图案
+  - 与整体美学呼应的上下文素材
+
+### 需要避免的 AI 典型模式
+
+❌ 泛滥使用的字体家族（Inter、Roboto、Arial、系统默认字体）
+❌ 陈词滥调的配色方案（无亮点的蓝色系）
+❌ 可预测的布局与组件框式
+❌ 缺乏独特个性的模块化设计
+❌ 重复某些"安全"选择（如反复使用 Space Grotesk）
+
+### 设计方法论
+
+运用创意的方式赋能需求，从美感层次和交互场景做出设计进步：
+
+1. **明确主题** - 确定整体视觉风格方向
+2. **字体风格** - 选择独特且符合主题的字体
+3. **美学风格** - 建立一致的视觉语言
+4. **灵动活动** - 设计有意义的动效和交互
+
+**突破既定模式至关重要** - 在每次设计时主动思考如何避免常见模式，创造真正独特的体验。
+
 ## Documentation
 
 - `README.md` - Complete user guide with examples
 - `IMPLEMENTATION_SUMMARY.md` - Detailed implementation notes for Token management, AgentLogger, MCP
 - `QUICKSTART.md` - Quick setup guide
+- `docs/STREAMING.md` - Streaming output feature documentation
 - API docs available at `/docs` when server is running

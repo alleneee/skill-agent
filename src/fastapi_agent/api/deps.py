@@ -10,6 +10,7 @@ from fastapi_agent.core.config import Settings
 from fastapi_agent.skills import create_skill_tools
 from fastapi_agent.tools import BashTool, EditTool, ReadTool, Tool, WriteTool
 from fastapi_agent.tools.mcp_loader import cleanup_mcp_connections, load_mcp_tools_async
+from fastapi_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
 
 # Global MCP tools storage (loaded at startup)
 _mcp_tools: list[Tool] = []
@@ -136,6 +137,8 @@ def get_agent(
         WriteTool(workspace_dir=str(workspace_path)),
         EditTool(workspace_dir=str(workspace_path)),
         BashTool(),
+        SessionNoteTool(memory_file=str(workspace_path / ".agent_memory.json")),
+        RecallNoteTool(memory_file=str(workspace_path / ".agent_memory.json")),
     ]
 
     # Load skills if enabled (Progressive Disclosure Level 1 & 2)
