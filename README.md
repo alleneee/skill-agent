@@ -16,6 +16,9 @@
 - ✅ **AgentLogger 日志系统**: 结构化 JSON 日志，完整追踪执行过程
 - ✅ **MCP 集成**: 支持 Model Context Protocol，扩展外部工具能力
 - ✅ **Skills 系统**: 内置专业 Skills，提供领域专家级指导
+- ✅ **流式输出**: 支持 Server-Sent Events (SSE) 实时流式响应
+- ✅ **会话记忆**: 使用 NoteTool 自动管理长期记忆和会话上下文
+- ✅ **Web 前端**: ChatGPT 风格的 React 前端界面
 
 ### 📊 性能与监控
 - ✅ **执行时间追踪**: 精确记录每个工具的执行时间（毫秒级）
@@ -33,19 +36,20 @@ skill-agent/
 │       │   ├── deps.py         # 依赖注入（MCP 初始化）
 │       │   └── v1/             # API v1 版本
 │       │       ├── router.py   # 主路由
-│       │       ├── agent.py    # Agent 端点
+│       │       ├── agent.py    # Agent 端点（含流式）
 │       │       ├── tools.py    # 工具列表端点
 │       │       └── health.py   # 健康检查
 │       ├── core/               # 核心组件
 │       │   ├── agent.py        # Agent 核心逻辑
-│       │   ├── llm_client.py   # LLM 客户端
+│       │   ├── llm_client.py   # LLM 客户端（含流式）
 │       │   ├── config.py       # 配置管理
 │       │   ├── token_manager.py    # Token 管理与消息总结
 │       │   └── agent_logger.py     # 结构化日志系统
 │       ├── tools/              # 工具实现
 │       │   ├── base.py         # 工具基类
 │       │   ├── file_tools.py   # 文件操作
-│       │   └── bash_tool.py    # Bash 执行
+│       │   ├── bash_tool.py    # Bash 执行
+│       │   └── note_tool.py    # 会话记忆管理
 │       ├── services/           # 服务层
 │       │   └── mcp_manager.py  # MCP 集成管理
 │       ├── skills/             # Skills 系统
@@ -55,15 +59,26 @@ skill-agent/
 │       │   └── ... (更多 Skills)
 │       ├── schemas/            # Pydantic 数据模型
 │       └── models/             # 数据模型定义
+├── frontend/                   # React Web 前端
+│   ├── src/
+│   │   ├── pages/Chat.tsx      # 主聊天页面
+│   │   ├── services/           # API 服务层
+│   │   ├── stores/             # Zustand 状态管理
+│   │   └── types/              # TypeScript 类型
+│   ├── package.json
+│   └── vite.config.ts
 ├── tests/                      # 测试套件
 │   ├── api/
 │   ├── core/
 │   └── tools/
+├── docs/                       # 文档
+│   └── STREAMING.md            # 流式输出文档
 ├── skills/                     # 外部 Skills 定义
 ├── examples/                   # 示例代码
 ├── workspace/                  # Agent 工作目录
 ├── mcp.json                    # MCP 服务器配置
 ├── pyproject.toml             # 项目配置（uv）
+├── test_frontend.sh            # 前端测试脚本
 └── README.md
 ```
 
@@ -153,7 +168,41 @@ python -m fastapi_agent.main
 - **健康检查**: http://localhost:8000/health
 - **工具列表**: http://localhost:8000/api/v1/tools/
 
+### 6. 启动前端（可选）
+
+```bash
+# 进入前端目录
+cd frontend
+
+# 安装依赖（首次运行）
+npm install
+
+# 启动开发服务器
+npm run dev
+```
+
+前端服务启动后，访问：
+- **Web 界面**: http://localhost:3001
+
 ## 💻 使用方法
+
+### 通过 Web 界面（推荐）
+
+1. 启动后端服务（见上方"启动服务"）
+2. 启动前端服务：`cd frontend && npm run dev`
+3. 访问 http://localhost:3001
+4. 点击"新对话"创建会话
+5. 输入消息，实时查看流式回复和工具调用过程
+
+**前端功能**：
+- 💬 ChatGPT 风格的对话界面
+- 🔄 实时流式输出
+- 🛠️ 工具调用可视化
+- 💾 会话管理（创建、切换、删除）
+- 📊 执行状态监控（步骤进度、Token 使用）
+- 📝 Markdown 渲染
+
+详细说明见 [frontend/README.md](./frontend/README.md)
 
 ### 通过 Python 客户端
 
@@ -184,10 +233,19 @@ asyncio.run(run_agent())
 ### 通过 curl
 
 ```bash
+# 普通请求
 curl -X POST http://localhost:8000/api/v1/agent/run \
   -H "Content-Type: application/json" \
   -d '{
     "message": "创建一个 Python 脚本，输出斐波那契数列的前 10 个数字",
+    "max_steps": 10
+  }'
+
+# 流式请求（实时输出）
+curl -N -X POST http://localhost:8000/api/v1/agent/run/stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "使用 Markdown 格式介绍你自己",
     "max_steps": 10
   }'
 ```
@@ -200,7 +258,7 @@ curl -X POST http://localhost:8000/api/v1/agent/run \
 
 ### `POST /api/v1/agent/run`
 
-运行 Agent 执行任务。
+运行 Agent 执行任务（普通模式）。
 
 **请求体：**
 
@@ -208,7 +266,8 @@ curl -X POST http://localhost:8000/api/v1/agent/run \
 {
   "message": "任务描述",
   "workspace_dir": "./workspace",  // 可选，默认使用配置值
-  "max_steps": 50                  // 可选，默认使用配置值
+  "max_steps": 50,                 // 可选，默认使用配置值
+  "session_id": "session-123"      // 可选，会话 ID（用于记忆管理）
 }
 ```
 
@@ -244,6 +303,23 @@ curl -X POST http://localhost:8000/api/v1/agent/run \
 }
 ```
 
+### `POST /api/v1/agent/run/stream`
+
+运行 Agent 执行任务（流式模式，使用 Server-Sent Events）。
+
+**请求体：**同 `/api/v1/agent/run`
+
+**响应：**Server-Sent Events 流，事件类型包括：
+
+- `thinking`: Agent 思考过程
+- `content`: Agent 回复内容（增量）
+- `tool_call`: 工具调用
+- `tool_result`: 工具执行结果
+- `step`: 步骤状态更新
+- `complete`: 执行完成
+
+详细说明见 [docs/STREAMING.md](./docs/STREAMING.md)
+
 ### `GET /api/v1/tools/`
 
 列出所有可用工具（包括基础工具、MCP 工具和 Skills）。
@@ -270,6 +346,12 @@ curl -X POST http://localhost:8000/api/v1/agent/run \
 
 5. **get_skill**: 加载 Skill 专家指导
    - 参数: `skill_name`
+
+6. **note**: 会话记忆管理（自动启用）
+   - `note_store`: 存储长期记忆
+   - `note_query`: 查询相关记忆
+   - `note_delete`: 删除记忆
+   - `note_list`: 列出所有记忆
 
 ### MCP 工具（通过 mcp.json 配置）
 
@@ -366,9 +448,9 @@ MCP 工具会自动加载并在 Agent 中可用。
 
 | 特性 | Mini-Agent | FastAPI Agent |
 |------|-----------|---------------|
-| 接口方式 | CLI | RESTful API |
+| 接口方式 | CLI | RESTful API + Web UI |
 | 部署方式 | 本地运行 | Web 服务 |
-| 集成方式 | 命令行 | HTTP API |
+| 集成方式 | 命令行 | HTTP API + 前端界面 |
 | Token 管理 | ✅ | ✅ |
 | 消息总结 | ✅ | ✅ |
 | 结构化日志 | ✅ | ✅ (AgentLogger) |
@@ -377,6 +459,9 @@ MCP 工具会自动加载并在 Agent 中可用。
 | Skills 系统 | ❌ | ✅ |
 | 执行时间追踪 | ❌ | ✅ |
 | RESTful API | ❌ | ✅ |
+| 流式输出 | ❌ | ✅ (SSE) |
+| 会话记忆 | ❌ | ✅ (NoteTool) |
+| Web 前端 | ❌ | ✅ (React + TypeScript) |
 
 ## 🔧 开发指南
 
@@ -554,6 +639,13 @@ python -m fastapi_agent.main
 - [MiniMax API 文档](https://platform.minimaxi.com/document)
 - [Model Context Protocol](https://modelcontextprotocol.io/)
 - [uv 包管理器](https://github.com/astral-sh/uv)
+- [Server-Sent Events (SSE)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
+
+## 📖 详细文档
+
+- [流式输出实现](./docs/STREAMING.md) - 详细的流式输出功能和 API 说明
+- [前端使用指南](./frontend/README.md) - React 前端的使用和开发指南
+- [开发指南](./CLAUDE.md) - 贡献者和开发者指南
 
 ## 📄 License
 
@@ -562,5 +654,3 @@ MIT License
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
-
-详细的实现总结请查看 [IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md)。
