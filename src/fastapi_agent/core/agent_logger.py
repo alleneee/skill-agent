@@ -289,6 +289,27 @@ class AgentLogger:
                 f.write(f"Run completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                 f.write("=" * 80 + "\n")
 
+    def log_event(self, event_type: str, data: dict[str, Any] | None = None):
+        """Log a general event.
+
+        Args:
+            event_type: Event type identifier
+            data: Event data dictionary (optional)
+        """
+        self.log_index += 1
+
+        event_data = {
+            "event_type": event_type,
+        }
+
+        if data:
+            event_data.update(data)
+
+        content = f"Event ({event_type}):\n\n"
+        content += json.dumps(event_data, indent=2, ensure_ascii=False)
+
+        self._write_log("EVENT", content)
+
     def _write_log(self, log_type: str, content: str):
         """Write log entry.
 

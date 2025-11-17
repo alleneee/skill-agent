@@ -114,6 +114,43 @@ async def cleanup_mcp_tools() -> None:
     _mcp_tools = []
 
 
+def get_tools(workspace_dir: str | None = None) -> list[Tool]:
+    """Get all available tools including base tools, MCP tools, and skill tools.
+
+    Args:
+        workspace_dir: Optional workspace directory path. If not provided,
+                      uses settings.AGENT_WORKSPACE_DIR
+
+    Returns:
+        List of all available tools
+    """
+    # Determine workspace directory
+    workspace_path = Path(workspace_dir or settings.AGENT_WORKSPACE_DIR)
+    workspace_path.mkdir(parents=True, exist_ok=True)
+
+    # Initialize base tools
+    tools = [
+        ReadTool(workspace_dir=str(workspace_path)),
+        WriteTool(workspace_dir=str(workspace_path)),
+        EditTool(workspace_dir=str(workspace_path)),
+        BashTool(),
+        SessionNoteTool(memory_file=str(workspace_path / ".agent_memory.json")),
+        RecallNoteTool(memory_file=str(workspace_path / ".agent_memory.json")),
+    ]
+
+    # Load skills if enabled
+    if settings.ENABLE_SKILLS:
+        skill_tools, skill_loader = create_skill_tools(settings.SKILLS_DIR)
+        if skill_tools:
+            tools.extend(skill_tools)
+
+    # Add MCP tools if enabled (loaded at startup)
+    if settings.ENABLE_MCP and _mcp_tools:
+        tools.extend(_mcp_tools)
+
+    return tools
+
+
 def get_agent(
     llm_client: Annotated[LLMClient, Depends(get_llm_client)],
     settings: Annotated[Settings, Depends(get_settings)],
@@ -131,35 +168,21 @@ def get_agent(
     workspace_path = Path(settings.AGENT_WORKSPACE_DIR)
     workspace_path.mkdir(parents=True, exist_ok=True)
 
-    # Initialize base tools
-    tools = [
-        ReadTool(workspace_dir=str(workspace_path)),
-        WriteTool(workspace_dir=str(workspace_path)),
-        EditTool(workspace_dir=str(workspace_path)),
-        BashTool(),
-        SessionNoteTool(memory_file=str(workspace_path / ".agent_memory.json")),
-        RecallNoteTool(memory_file=str(workspace_path / ".agent_memory.json")),
-    ]
+    # Get all tools
+    tools = get_tools(str(workspace_path))
 
-    # Load skills if enabled (Progressive Disclosure Level 1 & 2)
+    # Load system prompt
     system_prompt = settings.SYSTEM_PROMPT
-    if settings.ENABLE_SKILLS:
-        skill_tools, skill_loader = create_skill_tools(settings.SKILLS_DIR)
-        if skill_tools:
-            tools.extend(skill_tools)
 
-            # Inject skills metadata into system prompt (Level 1)
-            if skill_loader:
-                skills_metadata = skill_loader.get_skills_metadata_prompt()
-                system_prompt = system_prompt.replace("{SKILLS_METADATA}", skills_metadata)
+    # Inject skills metadata if enabled
+    if settings.ENABLE_SKILLS:
+        _, skill_loader = create_skill_tools(settings.SKILLS_DIR)
+        if skill_loader:
+            skills_metadata = skill_loader.get_skills_metadata_prompt()
+            system_prompt = system_prompt.replace("{SKILLS_METADATA}", skills_metadata)
     else:
         # Remove placeholder if skills not enabled
         system_prompt = system_prompt.replace("{SKILLS_METADATA}", "")
-
-    # Add MCP tools if enabled (loaded at startup)
-    if settings.ENABLE_MCP and _mcp_tools:
-        tools.extend(_mcp_tools)
-        print(f"🔌 Added {len(_mcp_tools)} MCP tools to agent")
 
     # Create agent
     return Agent(

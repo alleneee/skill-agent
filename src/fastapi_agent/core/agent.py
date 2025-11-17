@@ -18,16 +18,18 @@ class Agent:
         self,
         llm_client: LLMClient,
         system_prompt: str,
-        tools: list[Tool],
+        tools: list[Tool] | None = None,
         max_steps: int = 50,
         workspace_dir: str = "./workspace",
         token_limit: int = 120000,  # 120k tokens for claude-3-5-sonnet (200k context)
         enable_summarization: bool = True,
         enable_logging: bool = True,
         log_dir: str | None = None,
+        name: str | None = None,
     ) -> None:
         self.llm = llm_client
-        self.tools = {tool.name: tool for tool in tools}
+        self.name = name  # Agent name for team coordination
+        self.tools = {tool.name: tool for tool in (tools or [])}
         self.max_steps = max_steps
         self.workspace_dir = Path(workspace_dir)
 

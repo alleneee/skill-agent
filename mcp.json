@@ -11,6 +11,13 @@
       "env": {
         "EXA_API_KEY": "080b879b-30f4-4a71-b995-84b74b29437e"
       }
+    },
+    "desktop-commander": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@wonderwhy-er/desktop-commander@latest"
+      ]
     }
   }
 }
