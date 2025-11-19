@@ -1,6 +1,6 @@
 // Session types for managing conversation history
 
-import { Message } from './message';
+import type { Message } from './message';
 
 export interface Session {
   id: string;

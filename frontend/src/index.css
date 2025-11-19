@@ -1,27 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  /* ChatGPT-style color palette */
+  /* ChatGPT-style premium color palette */
   --bg-primary: #ffffff;
-  --bg-secondary: #f7f7f8;
-  --bg-sidebar: #f9f9f9;
-  --bg-user-message: #343541;
-  --bg-assistant-message: #f7f7f8;
-  --bg-hover: #ececf1;
-
-  --text-primary: #202123;
-  --text-secondary: #6e6e80;
-  --text-user-message: #ffffff;
-  --text-assistant: #202123;
-
+  --bg-secondary: #f9f9f9; /* Lighter gray for input area/secondary */
+  --bg-sidebar: #000000;   /* Dark sidebar like ChatGPT */
+  --bg-sidebar-hover: #202123;
+  
+  --bg-user-message: #f4f4f4; /* Light gray bubble for user */
+  --bg-assistant-message: transparent;
+  
+  --text-primary: #0d0d0d;
+  --text-secondary: #6b7280; /* Gray-500 */
+  --text-sidebar: #ececf1;
+  --text-sidebar-secondary: #acacbe;
+  
   --border-color: #e5e5e5;
+  --border-sidebar: #4d4d4f;
 
-  --accent-primary: #10a37f;
-  --accent-hover: #0d8b6d;
-
-  --success: #10a37f;
-  --error: #ef4444;
-  --warning: #f59e0b;
+  --accent-primary: #10a37f; /* ChatGPT Green */
+  --accent-hover: #1a7f64;
+  
+  --shadow-card: 0 0 15px rgba(0,0,0,0.05);
+  --shadow-input: 0 0 20px rgba(0,0,0,0.05);
 }
 
 * {
@@ -32,9 +33,11 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Söhne', 'ui-sans-serif', 'system-ui', -apple-system, 'Segoe UI', Roboto, Ubuntu, Cantarell, 'Noto Sans', sans-serif, 'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   background-color: var(--bg-primary);
   color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Typing cursor animation */

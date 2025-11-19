@@ -22,6 +22,6 @@ async def list_tools(
                 "description": tool.description,
                 "parameters": tool.parameters,
             }
-            for tool in agent.tools
+            for tool in agent.tools.values()
         ]
     }
