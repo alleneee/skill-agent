@@ -64,11 +64,18 @@ class AgentSession:
         self.runs.append(run)
         self.updated_at = time.time()
 
-    def get_history_messages(self, num_runs: Optional[int] = 3) -> List[Dict[str, str]]:
+    def get_history_messages(
+        self,
+        num_runs: Optional[int] = 3,
+        max_response_chars: int = 800,
+        smart_compress: bool = True,
+    ) -> List[Dict[str, str]]:
         """获取历史消息，用于注入到 Agent messages 中.
 
         Args:
             num_runs: 返回最近 N 轮运行，None 表示全部
+            max_response_chars: 每个响应的最大字符数（防止 token 爆炸）
+            smart_compress: 是否智能压缩（截断长响应，保留关键信息）
 
         Returns:
             历史消息列表 [{"role": "user", "content": ...}, {"role": "assistant", "content": ...}]
@@ -80,8 +87,22 @@ class AgentSession:
 
         messages = []
         for run in recent_runs:
+            # 用户消息保持原样
             messages.append({"role": "user", "content": run.task})
-            messages.append({"role": "assistant", "content": run.response})
+            
+            # 智能压缩助手响应
+            response = run.response
+            if smart_compress and len(response) > max_response_chars:
+                # 保留开头和结尾，中间截断
+                head_chars = int(max_response_chars * 0.7)
+                tail_chars = int(max_response_chars * 0.2)
+                response = (
+                    response[:head_chars] +
+                    f"\n\n[... 中间内容已省略，共 {len(run.response)} 字符 ...]\n\n" +
+                    response[-tail_chars:]
+                )
+            
+            messages.append({"role": "assistant", "content": response})
 
         return messages
 
