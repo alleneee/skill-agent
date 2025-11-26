@@ -9,12 +9,19 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
-from fastapi_agent.api.deps import get_agent, get_settings, get_agent_session_manager
-from fastapi_agent.core import Agent
+from fastapi_agent.api.deps import (
+    get_agent,
+    get_settings,
+    get_agent_session_manager,
+    get_agent_factory,
+    get_llm_client,
+    AgentFactory,
+)
+from fastapi_agent.core import Agent, LLMClient
 from fastapi_agent.core.config import Settings
 from fastapi_agent.core.session import AgentRunRecord
 from fastapi_agent.core.session_manager import UnifiedAgentSessionManager
-from fastapi_agent.schemas.message import AgentRequest, AgentResponse, Message
+from fastapi_agent.schemas.message import AgentRequest, AgentResponse, AgentConfig, Message
 
 router = APIRouter()
 
@@ -22,24 +29,45 @@ router = APIRouter()
 @router.post("/run", response_model=AgentResponse)
 async def run_agent(
     request: AgentRequest,
-    agent: Agent = Depends(get_agent),
+    agent_factory: AgentFactory = Depends(get_agent_factory),
+    llm_client: LLMClient = Depends(get_llm_client),
     settings: Settings = Depends(get_settings),
     session_manager: Optional[UnifiedAgentSessionManager] = Depends(get_agent_session_manager),
 ) -> AgentResponse:
     """Run agent with a task.
 
     Args:
-        request: Agent request with message and optional parameters
-        agent: Agent instance from dependency injection
+        request: Agent request with message and optional dynamic configuration
+        agent_factory: Agent factory for creating agents with dynamic config
+        llm_client: LLM client instance
         settings: Application settings
         session_manager: Session manager for multi-turn conversation
 
     Returns:
         Agent response with result and execution logs
 
+    **Dynamic configuration:**
+    - Use `config` field to customize agent behavior per request
+    - Override workspace_dir, max_steps, system_prompt, tool selection, etc.
+    - If not provided, uses default settings
+
     **Session support:**
     - Provide `session_id` to enable multi-turn conversation with history context
     - Sessions are persisted and can be resumed across requests
+
+    **Example with dynamic config:**
+    ```json
+    {
+        "message": "Analyze this code",
+        "config": {
+            "workspace_dir": "/tmp/custom-workspace",
+            "max_steps": 20,
+            "enable_base_tools": true,
+            "enable_mcp_tools": false,
+            "base_tools_filter": ["read", "write"]
+        }
+    }
+    ```
 
     **Example with session:**
     ```json
@@ -48,15 +76,6 @@ async def run_agent(
         "session_id": "user-123"
     }
     ```
-
-    Then in the next request:
-    ```json
-    {
-        "message": "Tell me more about its syntax",
-        "session_id": "user-123"
-    }
-    ```
-    The agent will have context from the previous conversation.
     """
     if not settings.LLM_API_KEY:
         raise HTTPException(
@@ -67,6 +86,20 @@ async def run_agent(
     run_id = str(uuid4())
 
     try:
+        # Handle backward compatibility
+        config = request.config
+        if config is None:
+            config = AgentConfig()
+
+        # Support deprecated fields
+        if request.workspace_dir and not config.workspace_dir:
+            config.workspace_dir = request.workspace_dir
+        if request.max_steps and not config.max_steps:
+            config.max_steps = request.max_steps
+
+        # Create agent with dynamic configuration
+        agent = await agent_factory.create_agent(llm_client, config)
+
         # Load history context if session_id provided
         if request.session_id and session_manager:
             session = await session_manager.get_session(
@@ -132,20 +165,25 @@ async def run_agent(
 @router.post("/run/stream")
 async def run_agent_stream(
     request: AgentRequest,
-    agent: Agent = Depends(get_agent),
+    agent_factory: AgentFactory = Depends(get_agent_factory),
+    llm_client: LLMClient = Depends(get_llm_client),
     settings: Settings = Depends(get_settings),
     session_manager: Optional[UnifiedAgentSessionManager] = Depends(get_agent_session_manager),
 ):
     """Run agent with streaming output using Server-Sent Events.
 
     Args:
-        request: Agent request with message and optional parameters
-        agent: Agent instance from dependency injection
+        request: Agent request with message and optional dynamic configuration
+        agent_factory: Agent factory for creating agents with dynamic config
+        llm_client: LLM client instance
         settings: Application settings
         session_manager: Session manager for multi-turn conversation
 
     Returns:
         StreamingResponse with SSE events
+
+    **Dynamic configuration:**
+    - Same as /run endpoint, use `config` field for customization
 
     **Session support:**
     - Same as /run endpoint, provide `session_id` for multi-turn conversation
@@ -164,6 +202,20 @@ async def run_agent_stream(
         steps = 0
 
         try:
+            # Handle backward compatibility
+            config = request.config
+            if config is None:
+                config = AgentConfig()
+
+            # Support deprecated fields
+            if request.workspace_dir and not config.workspace_dir:
+                config.workspace_dir = request.workspace_dir
+            if request.max_steps and not config.max_steps:
+                config.max_steps = request.max_steps
+
+            # Create agent with dynamic configuration
+            agent = await agent_factory.create_agent(llm_client, config)
+
             # Load history context if session_id provided
             if request.session_id and session_manager:
                 session = await session_manager.get_session(

@@ -10,6 +10,7 @@ from fastapi_agent.core.session import RunRecord, TeamSession
 from fastapi_agent.core.session_manager import UnifiedTeamSessionManager
 from fastapi_agent.schemas.team import TeamConfig, TeamMemberConfig, MemberRunResult, TeamRunResponse
 from fastapi_agent.tools.base import Tool
+from fastapi_agent.tools.spawn_agent_tool import SpawnAgentTool
 
 
 class DelegateTaskTool(Tool):
@@ -126,7 +127,12 @@ class Team:
         llm_client: LLMClient,
         available_tools: Optional[List[Tool]] = None,
         workspace_dir: str = "./workspace",
-        session_manager: Optional[UnifiedTeamSessionManager] = None
+        session_manager: Optional[UnifiedTeamSessionManager] = None,
+        enable_spawn_agent: bool = True,
+        spawn_agent_max_depth: int = 3,
+        spawn_agent_default_max_steps: int = 15,
+        spawn_agent_token_limit: int = 50000,
+        current_depth: int = 0,  # Depth tracking for nested Team/SpawnAgent
     ):
         self.config = config
         self.llm_client = llm_client
@@ -134,6 +140,13 @@ class Team:
         self.workspace_dir = workspace_dir
         self.team_id = str(uuid4())
         self.session_manager = session_manager or UnifiedTeamSessionManager()
+
+        # Spawn Agent configuration
+        self.enable_spawn_agent = enable_spawn_agent
+        self.spawn_agent_max_depth = spawn_agent_max_depth
+        self.spawn_agent_default_max_steps = spawn_agent_default_max_steps
+        self.spawn_agent_token_limit = spawn_agent_token_limit
+        self.current_depth = current_depth  # Team execution counts as depth
 
         # Track member runs (for current execution)
         self.member_runs: List[MemberRunResult] = []
@@ -242,6 +255,25 @@ DELEGATION GUIDELINES:
                 for tool in self.available_tools:
                     if tool.name in member_config.tools:
                         member_tools.append(tool)
+
+                # Add SpawnAgentTool if member has it in their tools and it's enabled
+                if (self.enable_spawn_agent and
+                    "spawn_agent" in member_config.tools and
+                    self.current_depth < self.spawn_agent_max_depth):
+
+                    # Create parent tools dict for spawn agent (member's other tools)
+                    parent_tools = {t.name: t for t in member_tools}
+
+                    spawn_tool = SpawnAgentTool(
+                        llm_client=self.llm_client,
+                        parent_tools=parent_tools,
+                        workspace_dir=self.workspace_dir,
+                        current_depth=self.current_depth + 1,  # Team member is depth + 1
+                        max_depth=self.spawn_agent_max_depth,
+                        default_max_steps=self.spawn_agent_default_max_steps,
+                        default_token_limit=self.spawn_agent_token_limit,
+                    )
+                    member_tools.append(spawn_tool)
 
             # Create member-specific system prompt
             system_prompt = f"""You are {member_config.name}, a {member_config.role}.
