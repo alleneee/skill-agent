@@ -133,6 +133,30 @@ class Settings(BaseSettings):
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
 
+    # Spawn Agent settings
+    ENABLE_SPAWN_AGENT: bool = Field(
+        default=True,
+        description="Enable spawn_agent tool for sub-agent creation"
+    )
+    SPAWN_AGENT_MAX_DEPTH: int = Field(
+        default=3,
+        ge=1,
+        le=5,
+        description="Maximum nesting depth for spawned agents"
+    )
+    SPAWN_AGENT_DEFAULT_MAX_STEPS: int = Field(
+        default=15,
+        ge=5,
+        le=30,
+        description="Default max steps for spawned sub-agents"
+    )
+    SPAWN_AGENT_TOKEN_LIMIT: int = Field(
+        default=50000,
+        ge=10000,
+        le=100000,
+        description="Token limit for spawned sub-agents"
+    )
+
     # System prompt
     SYSTEM_PROMPT: str = Field(
         default="""你是 Claude Code，一个功能强大的 AI 助手。
@@ -150,6 +174,27 @@ class Settings(BaseSettings):
 1. **旅游/出行相关**：当用户询问旅游攻略、景点推荐、路线规划、天气查询、美食住宿时，**必须**使用高德地图工具（maps_*），不要使用网络搜索
 2. **编程/技术问题**：使用网络搜索获取最新文档和解决方案
 3. **通用问题**：根据问题类型选择合适的工具
+
+## 子任务委派策略
+当需要委派复杂任务给子agent时，请遵循以下流程：
+
+1. **评估任务**：判断任务是否需要专业领域知识
+2. **加载技能**：如果需要，先使用 `get_skill` 加载相关skill的完整内容
+3. **委派执行**：使用 `spawn_agent` 创建子agent，将skill内容作为context传递
+
+示例流程：
+```
+用户请求: "帮我做安全审计"
+步骤1: get_skill("security-audit") -> 获取安全审计专业指导
+步骤2: spawn_agent(
+    task="审计src/auth模块的安全性",
+    role="security auditor",
+    context=<skill内容>,
+    tools=["read_file", "bash"]
+)
+```
+
+这样子agent将获得专业领域知识指导，提高任务完成质量。
 
 ## 工作方式
 - 先分析用户需求，选择正确的工具
