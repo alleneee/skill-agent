@@ -572,3 +572,36 @@ def get_agent_factory(
         AgentFactory instance
     """
     return AgentFactory(settings)
+
+
+def get_builtin_research_team(
+    llm_client: Annotated[LLMClient, Depends(get_llm_client)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> "Team":
+    """Get builtin web research team instance.
+
+    Creates a team with two specialized agents:
+    - Web Search Agent (uses exa MCP tools)
+    - Web Spider Agent (uses firecrawl MCP tools)
+
+    Args:
+        llm_client: LLM client instance
+        settings: Application settings
+
+    Returns:
+        Configured web research team
+    """
+    from fastapi_agent.core.builtin_teams import create_web_research_team
+
+    # Get all available tools (including MCP tools)
+    workspace_path = Path(settings.AGENT_WORKSPACE_DIR)
+    workspace_path.mkdir(parents=True, exist_ok=True)
+    tools = get_tools(str(workspace_path))
+
+    # Create and return the team
+    return create_web_research_team(
+        llm_client=llm_client,
+        available_tools=tools,
+        workspace_dir=str(workspace_path),
+    )
+

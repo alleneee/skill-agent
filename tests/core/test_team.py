@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
 
-from fastapi_agent.core.team import Team, DelegateTaskTool, DelegateToAllTool
+from fastapi_agent.core.team import Team
 from fastapi_agent.core.llm_client import LLMClient
 from fastapi_agent.schemas.team import TeamConfig, TeamMemberConfig, TaskWithDependencies
 from fastapi_agent.tools.file_tools import ReadTool, WriteTool
@@ -24,12 +24,14 @@ def sample_team_config():
         description="A team for research tasks",
         members=[
             TeamMemberConfig(
+                id="researcher",
                 name="Researcher",
                 role="Information gathering specialist",
                 instructions="Find and summarize information",
                 tools=[]
             ),
             TeamMemberConfig(
+                id="writer",
                 name="Writer",
                 role="Documentation specialist",
                 instructions="Create clear documentation",
@@ -64,83 +66,10 @@ def test_team_initialization(llm_client, sample_team_config, available_tools):
     assert team.iteration_count == 0
 
 
-def test_delegate_task_tool_initialization(llm_client, sample_team_config, available_tools):
-    """Test DelegateTaskTool initialization."""
-    team = Team(
-        config=sample_team_config,
-        llm_client=llm_client,
-        available_tools=available_tools
-    )
-
-    tool = DelegateTaskTool(team)
-
-    assert tool.name == "delegate_task_to_member"
-    assert "Delegate a task" in tool.description
-
-    params = tool.parameters
-    assert params["type"] == "object"
-    assert "member_name" in params["properties"]
-    assert "task" in params["properties"]
-
-    # Check member enum
-    member_enum = params["properties"]["member_name"]["enum"]
-    assert "Researcher" in member_enum
-    assert "Writer" in member_enum
-
-
-def test_delegate_to_all_tool_initialization(llm_client, sample_team_config, available_tools):
-    """Test DelegateToAllTool initialization."""
-    team = Team(
-        config=sample_team_config,
-        llm_client=llm_client,
-        available_tools=available_tools
-    )
-
-    tool = DelegateToAllTool(team)
-
-    assert tool.name == "delegate_task_to_all_members"
-    assert "ALL team members" in tool.description
-
-    params = tool.parameters
-    assert "task" in params["properties"]
-    assert params["required"] == ["task"]
-
-
-def test_get_leader_tools_single_delegation(llm_client, sample_team_config, available_tools):
-    """Test getting leader tools for single member delegation."""
-    team = Team(
-        config=sample_team_config,
-        llm_client=llm_client,
-        available_tools=available_tools
-    )
-
-    tools = team._get_leader_tools()
-
-    assert len(tools) == 1
-    assert isinstance(tools[0], DelegateTaskTool)
-
-
-def test_get_leader_tools_all_delegation(llm_client, available_tools):
-    """Test getting leader tools for all-member delegation."""
-    config = TeamConfig(
-        name="Brainstorm Team",
-        members=[
-            TeamMemberConfig(name="Member1", role="Role1"),
-            TeamMemberConfig(name="Member2", role="Role2")
-        ],
-        delegate_to_all=True
-    )
-
-    team = Team(
-        config=config,
-        llm_client=llm_client,
-        available_tools=available_tools
-    )
-
-    tools = team._get_leader_tools()
-
-    assert len(tools) == 1
-    assert isinstance(tools[0], DelegateToAllTool)
+# NOTE: Tests for DelegateTaskTool and DelegateToAllTool have been removed
+# The delegation mechanism now uses dynamic closure functions created at runtime
+# in Team.run(), inspired by agno's implementation. See test_dynamic_tools.py
+# for tests of the new mechanism.
 
 
 def test_build_leader_system_prompt(llm_client, sample_team_config, available_tools):
@@ -168,8 +97,8 @@ def test_build_leader_system_prompt_delegate_all(llm_client, available_tools):
         name="Creative Team",
         description="Creative brainstorming",
         members=[
-            TeamMemberConfig(name="Member1", role="Creative"),
-            TeamMemberConfig(name="Member2", role="Analytical")
+            TeamMemberConfig(id="creative", name="Member1", role="Creative"),
+            TeamMemberConfig(id="analytical", name="Member2", role="Analytical")
         ],
         delegate_to_all=True,
         leader_instructions="Focus on innovative solutions"
@@ -266,21 +195,6 @@ def test_run_member_error(llm_client, sample_team_config, available_tools):
         assert result.success is False
         assert result.error == "Agent failed"
         assert len(team.member_runs) == 1
-
-
-def test_delegate_task_tool_member_not_found(llm_client, sample_team_config, available_tools):
-    """Test delegating to non-existent member."""
-    team = Team(
-        config=sample_team_config,
-        llm_client=llm_client,
-        available_tools=available_tools
-    )
-
-    tool = DelegateTaskTool(team)
-    result = tool.execute(member_name="NonExistent", task="Some task")
-
-    assert "not found" in result
-    assert "NonExistent" in result
 
 
 def test_team_run_integration(llm_client, sample_team_config, available_tools):

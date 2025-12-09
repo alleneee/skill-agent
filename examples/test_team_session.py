@@ -36,12 +36,14 @@ def test_basic_team_without_session():
         description="A team of specialists for research and analysis",
         members=[
             TeamMemberConfig(
+                id="researcher",
                 name="Researcher",
                 role="Research Specialist",
                 instructions="Conduct thorough research on given topics",
                 tools=["bash"]
             ),
             TeamMemberConfig(
+                id="analyst",
                 name="Analyst",
                 role="Data Analyst",
                 instructions="Analyze data and provide insights",
@@ -91,12 +93,14 @@ def test_team_with_session():
         description="A team of specialists for research and writing",
         members=[
             TeamMemberConfig(
+                id="researcher",
                 name="Researcher",
                 role="Research Specialist",
                 instructions="Conduct thorough research on given topics",
                 tools=["bash"]
             ),
             TeamMemberConfig(
+                id="writer",
                 name="Writer",
                 role="Technical Writer",
                 instructions="Write clear, concise documentation",
@@ -177,7 +181,7 @@ def test_session_history_inspection():
         name="Test Team",
         description="A test team",
         members=[
-            TeamMemberConfig(name="Helper", role="Assistant", tools=[]),
+            TeamMemberConfig(id="helper", name="Helper", role="Assistant", tools=[]),
         ],
     )
 
@@ -246,7 +250,7 @@ def test_session_persistence():
 
     team_config = TeamConfig(
         name="Persistent Team",
-        members=[TeamMemberConfig(name="Helper", role="Assistant", tools=[])],
+        members=[TeamMemberConfig(id="helper", name="Helper", role="Assistant", tools=[])],
     )
 
     team1 = Team(

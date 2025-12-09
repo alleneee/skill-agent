@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 class TeamMemberConfig(BaseModel):
     """Configuration for a team member."""
 
+    id: str = Field(..., description="Unique member identifier (e.g., 'hn_researcher', 'article_reader')")
     name: str = Field(..., description="Team member name")
     role: str = Field(..., description="Team member role/specialty")
     instructions: Optional[str] = Field(None, description="Specific instructions for this member")

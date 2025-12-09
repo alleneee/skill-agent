@@ -15,9 +15,11 @@ from fastapi_agent.api.deps import (
     get_agent_session_manager,
     get_agent_factory,
     get_llm_client,
+    get_builtin_research_team,
     AgentFactory,
 )
 from fastapi_agent.core import Agent, LLMClient
+from fastapi_agent.core.team import Team
 from fastapi_agent.core.config import Settings
 from fastapi_agent.core.session import AgentRunRecord
 from fastapi_agent.core.session_manager import UnifiedAgentSessionManager
@@ -33,6 +35,7 @@ async def run_agent(
     llm_client: LLMClient = Depends(get_llm_client),
     settings: Settings = Depends(get_settings),
     session_manager: Optional[UnifiedAgentSessionManager] = Depends(get_agent_session_manager),
+    research_team: Team = Depends(get_builtin_research_team),
 ) -> AgentResponse:
     """Run agent with a task.
 
@@ -42,9 +45,15 @@ async def run_agent(
         llm_client: LLM client instance
         settings: Application settings
         session_manager: Session manager for multi-turn conversation
+        research_team: Builtin web research team (injected when use_team=true)
 
     Returns:
         Agent response with result and execution logs
+
+    **Team mode:**
+    - Set `use_team: true` to use builtin web research team
+    - Team includes web_search_agent (exa) and web_spider_agent (firecrawl)
+    - Leader coordinates search and crawling tasks automatically
 
     **Dynamic configuration:**
     - Use `config` field to customize agent behavior per request
@@ -54,6 +63,15 @@ async def run_agent(
     **Session support:**
     - Provide `session_id` to enable multi-turn conversation with history context
     - Sessions are persisted and can be resumed across requests
+
+    **Example with team mode:**
+    ```json
+    {
+        "message": "Search for AI news and crawl the top article",
+        "use_team": true,
+        "session_id": "user-123"
+    }
+    ```
 
     **Example with dynamic config:**
     ```json
@@ -68,14 +86,6 @@ async def run_agent(
         }
     }
     ```
-
-    **Example with session:**
-    ```json
-    {
-        "message": "What is Python?",
-        "session_id": "user-123"
-    }
-    ```
     """
     if not settings.LLM_API_KEY:
         raise HTTPException(
@@ -86,6 +96,27 @@ async def run_agent(
     run_id = str(uuid4())
 
     try:
+        # Check if team mode is enabled
+        if request.use_team:
+            # Use builtin team instead of single agent
+            response = await research_team.run(
+                message=request.message,
+                session_id=request.session_id,
+                num_history_runs=request.num_history_runs or settings.SESSION_HISTORY_RUNS,
+                max_steps=request.config.max_steps if request.config else settings.AGENT_MAX_STEPS,
+            )
+
+            # Convert TeamRunResponse to AgentResponse format
+            return AgentResponse(
+                success=response.success,
+                message=response.message,
+                steps=response.total_steps,
+                logs=[],  # Team doesn't expose detailed logs in current impl
+                session_id=request.session_id,
+                run_id=run_id,
+            )
+
+        # Original single agent mode
         # Handle backward compatibility
         config = request.config
         if config is None:

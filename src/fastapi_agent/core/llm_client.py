@@ -56,7 +56,7 @@ class LLMClient:
     # Provider-specific max_tokens limits
     PROVIDER_MAX_TOKENS = {
         "deepseek": 8192,
-        "qwen": 8192,
+        "qwen": 8192,  # Actual API limit is 8192 (docs show 32K but API enforces 8192)
         "glm": 8192,
         "openai": 16384,
         "anthropic": 8192,

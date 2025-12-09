@@ -92,6 +92,12 @@ class AgentRequest(BaseModel):
     """Request to agent endpoint."""
     message: str = Field(..., description="User message/task")
 
+    # Team mode
+    use_team: Optional[bool] = Field(
+        False,
+        description="Use builtin web research team (with web_search and web_spider agents)"
+    )
+
     # Session management
     session_id: Optional[str] = Field(
         None,

@@ -32,12 +32,14 @@ def create_research_team() -> TeamConfig:
         description="A team specialized in research, analysis, and documentation",
         members=[
             TeamMemberConfig(
+                id="web_researcher",
                 name="Web Researcher",
                 role="Information gathering specialist",
                 instructions="Your job is to find relevant information. Provide comprehensive summaries.",
                 tools=[]
             ),
             TeamMemberConfig(
+                id="technical_writer",
                 name="Technical Writer",
                 role="Documentation specialist",
                 instructions="Create clear, well-structured documentation using markdown.",

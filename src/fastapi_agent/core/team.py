@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from fastapi_agent.core.agent import Agent
 from fastapi_agent.core.llm_client import LLMClient
-from fastapi_agent.core.session import RunRecord, TeamSession
+from fastapi_agent.core.run_context import RunContext
 from fastapi_agent.core.session_manager import UnifiedTeamSessionManager
 from fastapi_agent.core.trace_logger import TraceLogger, get_current_trace, set_current_trace
 from fastapi_agent.schemas.team import (
@@ -18,116 +18,9 @@ from fastapi_agent.schemas.team import (
     TaskWithDependencies,
     DependencyRunResponse,
 )
-from fastapi_agent.tools.base import Tool, ToolResult
+from fastapi_agent.tools.base import Tool
+from fastapi_agent.tools.function_tool import create_tool_from_function
 from fastapi_agent.tools.spawn_agent_tool import SpawnAgentTool
-
-
-class DelegateTaskTool(Tool):
-    """Tool for delegating tasks to team members."""
-
-    def __init__(self, team: "Team", session_id: Optional[str] = None):
-        self.team = team
-        self.session_id = session_id
-
-    @property
-    def name(self) -> str:
-        return "delegate_task_to_member"
-
-    @property
-    def description(self) -> str:
-        return (
-            "Delegate a task to a specific team member. "
-            "Use this to assign work to the team member best suited for the task."
-        )
-
-    @property
-    def parameters(self) -> Dict[str, Any]:
-        # Build member choices from team
-        member_enum = [m.name for m in self.team.config.members]
-
-        return {
-            "type": "object",
-            "properties": {
-                "member_name": {
-                    "type": "string",
-                    "enum": member_enum,
-                    "description": f"Name of the team member to delegate to. Available members: {', '.join(member_enum)}"
-                },
-                "task": {
-                    "type": "string",
-                    "description": "Clear description of the task to delegate"
-                }
-            },
-            "required": ["member_name", "task"]
-        }
-
-    async def execute(self, member_name: str, task: str) -> ToolResult:
-        """Execute task delegation."""
-        member_config = None
-        for m in self.team.config.members:
-            if m.name == member_name:
-                member_config = m
-                break
-
-        if not member_config:
-            return ToolResult(success=False, error=f"Member '{member_name}' not found in team")
-
-        trace = get_current_trace()
-        if trace:
-            trace.log_delegation("Leader", member_name, task)
-
-        result = await self.team._run_member(member_config, task, session_id=self.session_id)
-
-        if result.success:
-            return ToolResult(success=True, content=f"{member_name} completed task:\n{result.response}")
-        else:
-            return ToolResult(success=False, content=result.response, error=result.error)
-
-
-class DelegateToAllTool(Tool):
-    """Tool for delegating tasks to all team members."""
-
-    def __init__(self, team: "Team", session_id: Optional[str] = None):
-        self.team = team
-        self.session_id = session_id
-
-    @property
-    def name(self) -> str:
-        return "delegate_task_to_all_members"
-
-    @property
-    def description(self) -> str:
-        return (
-            "Delegate a task to ALL team members to get diverse perspectives. "
-            "Use this when you need collaborative input from the entire team."
-        )
-
-    @property
-    def parameters(self) -> Dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "task": {
-                    "type": "string",
-                    "description": "Task description to send to all members"
-                }
-            },
-            "required": ["task"]
-        }
-
-    async def execute(self, task: str) -> ToolResult:
-        """Execute task delegation to all members."""
-        results = []
-        all_success = True
-        for member_config in self.team.config.members:
-            result = await self.team._run_member(member_config, task, session_id=self.session_id)
-            if result.success:
-                results.append(f"[{member_config.name}]: {result.response}")
-            else:
-                results.append(f"[{member_config.name}] FAILED: {result.error}")
-                all_success = False
-
-        return ToolResult(success=all_success, content="\n\n".join(results))
 
 
 class Team:
@@ -165,22 +58,8 @@ class Team:
         self.iteration_count = 0
         self._current_run_id: Optional[str] = None  # Track current leader run ID
 
-    def _get_leader_tools(self, session_id: Optional[str] = None) -> List[Tool]:
-        """Get tools for the team leader.
-
-        Args:
-            session_id: Optional session ID to pass to delegation tools
-
-        Returns:
-            List of delegation tools
-        """
-        if self.config.delegate_to_all:
-            return [DelegateToAllTool(self, session_id=session_id)]
-        else:
-            return [DelegateTaskTool(self, session_id=session_id)]
-
     def _build_leader_system_prompt(self, history_context: str = "") -> str:
-        """Build system prompt for team leader.
+        """Build system prompt for team leader using structured format (inspired by agno).
 
         Args:
             history_context: Optional formatted history from previous runs
@@ -188,59 +67,88 @@ class Team:
         Returns:
             Complete system prompt for the leader agent
         """
+        # Build team members section
         members_desc = []
-        for member in self.config.members:
-            tools_str = ", ".join(member.tools) if member.tools else "No tools"
-            members_desc.append(
-                f"- **{member.name}** ({member.role})\n"
-                f"  Tools: {tools_str}\n"
-                f"  {member.instructions or 'General purpose agent'}"
-            )
+        for idx, member in enumerate(self.config.members, 1):
+            tools_list = "\n    - ".join(member.tools) if member.tools else "(no tools)"
+
+            member_entry = f""" - Agent {idx}:
+   - ID: {member.id}
+   - Name: {member.name}
+   - Role: {member.role}"""
+
+            if member.tools:
+                member_entry += f"\n   - Member tools:\n    - {tools_list}"
+            else:
+                member_entry += f"\n   - Member tools: {tools_list}"
+
+            if member.instructions:
+                member_entry += f"\n   - Instructions: {member.instructions}"
+
+            members_desc.append(member_entry)
 
         members_info = "\n".join(members_desc)
 
+        # Build how_to_respond section
         if self.config.delegate_to_all:
-            delegation_instructions = """
-When you receive a task:
-1. Use the `delegate_task_to_all_members` tool to send the task to ALL team members
-2. Analyze and synthesize the responses from all members
-3. Provide a comprehensive final answer based on the collaborative input
-"""
+            delegation_method = """- You cannot use a member tool directly. You can only delegate tasks to members.
+- Use the `delegate_task_to_all_members` tool to send the task to ALL team members.
+- When you delegate a task, provide a clear description of the task.
+- You must always analyze the responses from members before responding to the user.
+- After analyzing the responses from the members, if you feel the task has been completed, you can stop and respond to the user.
+- If you are NOT satisfied with the responses from the members, you should re-assign the task."""
         else:
-            delegation_instructions = """
-When you receive a task:
-1. Analyze which team member(s) are best suited for the task
-2. Use the `delegate_task_to_member` tool to assign work to appropriate members
-3. You can delegate to multiple members if needed
-4. Synthesize the responses and provide a final answer
-5. If the member's response is insufficient, you can delegate to another member or ask for clarification
-"""
+            delegation_method = """- Your role is to delegate tasks to members in your team with the highest likelihood of completing the user's request.
+- Carefully analyze the tools available to the members and their roles before delegating tasks.
+- You cannot use a member tool directly. You can only delegate tasks to members.
+- When you delegate a task to another member, make sure to include:
+  - member_id (str): The ID of the member to delegate the task to. Use only the ID of the member.
+  - task (str): A clear description of the task. Determine the best way to describe the task to the member.
+- You can delegate tasks to multiple members at once.
+- You must always analyze the responses from members before responding to the user.
+- After analyzing the responses from the members, if you feel the task has been completed, you can stop and respond to the user.
+- If you are NOT satisfied with the responses from the members, you should re-assign the task to a different member.
+- For simple greetings, thanks, or questions about the team itself, you should respond directly.
+- For all work requests, tasks, or questions requiring expertise, route to appropriate team members."""
 
-        # Build base prompt
-        system_prompt = f"""You are the leader of the {self.config.name} team.
+        # Build the structured prompt
+        system_prompt = f"""You are the leader of a team of AI Agents.
 
-TEAM DESCRIPTION:
+Your task is to coordinate the team to complete the user's request.
+
+<team_name>
+{self.config.name}
+</team_name>
+
+<team_description>
 {self.config.description or 'A collaborative team of specialized agents'}
+</team_description>
 
-TEAM MEMBERS:
+<team_members>
 {members_info}
+</team_members>
 
-YOUR ROLE AS LEADER:
-{delegation_instructions}
+<how_to_respond>
+{delegation_method}
+</how_to_respond>"""
 
-DELEGATION GUIDELINES:
-- Choose members based on their roles and available tools
-- Provide clear, specific task descriptions when delegating
-- Analyze member responses before providing your final answer
-- For simple greetings or questions about the team, respond directly without delegation
+        # Add custom leader instructions if provided
+        if self.config.leader_instructions:
+            system_prompt += f"""
 
-{self.config.leader_instructions or ''}
-"""
+<instructions>
+{self.config.leader_instructions}
+</instructions>"""
 
         # Add history context if available
         if history_context:
-            system_prompt += f"\n\nPREVIOUS INTERACTIONS:\n{history_context}\n"
-            system_prompt += "\nUse the previous interactions to maintain continuity and context.\n"
+            system_prompt += f"""
+
+<previous_interactions>
+{history_context}
+
+Use the previous interactions to maintain continuity and context.
+</previous_interactions>"""
 
         return system_prompt
 
@@ -394,12 +302,55 @@ Focus on your area of expertise and provide clear, actionable responses.
         max_steps: int = 50,
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
-        num_history_runs: int = 3
+        num_history_runs: int = 3,
+        run_context: Optional[RunContext] = None,
     ) -> TeamRunResponse:
-        """Run the team on a task."""
+        """Run the team on a task.
+
+        Args:
+            message: Task message for the team
+            max_steps: Maximum steps for leader agent (default: 50)
+            session_id: Session ID for conversation continuity (optional)
+            user_id: User ID for tracking (optional)
+            num_history_runs: Number of history runs to include in context (default: 3)
+            run_context: Internal parameter for framework use only. Users should use
+                session_id/user_id parameters instead. This is mainly used for internal
+                context passing between Team and member Agents.
+
+        Returns:
+            TeamRunResponse with execution results
+
+        Example:
+            >>> # ✅ Recommended: Use independent parameters
+            >>> response = await team.run(
+            ...     message="Research Python asyncio and create documentation",
+            ...     session_id="user-session-123",
+            ...     user_id="user-456",
+            ...     max_steps=50
+            ... )
+
+            >>> # ❌ Not recommended: Manually creating RunContext
+            >>> # Users should not manually create RunContext
+            >>> # The framework handles this automatically
+
+        Note:
+            - RunContext is created automatically from session_id/user_id if not provided
+            - run_context parameter is mainly for internal framework use
+            - See docs/RUNCONTEXT_DESIGN.md for design rationale
+        """
         self.member_runs = []
         self.iteration_count = 0
-        self._current_run_id = str(uuid4())
+
+        # Initialize or create run context
+        if run_context is None:
+            self._current_run_id = str(uuid4())
+            run_context = RunContext(
+                run_id=self._current_run_id,
+                session_id=session_id or str(uuid4()),
+                user_id=user_id,
+            )
+        else:
+            self._current_run_id = run_context.run_id
 
         trace = TraceLogger()
         trace.start_trace("team", {
@@ -412,17 +363,94 @@ Focus on your area of expertise and provide clear, actionable responses.
             trace.log_agent_start("Leader", "Team Leader", message, depth=0)
 
             history_context = ""
-            if session_id:
+            if run_context.session_id:
                 session = await self.session_manager.get_session(
-                    session_id=session_id,
+                    session_id=run_context.session_id,
                     team_name=self.config.name,
-                    user_id=user_id
+                    user_id=run_context.user_id
                 )
                 history_context = session.get_history_context(num_runs=num_history_runs)
 
             # Create leader agent with history context
-            leader_tools = self._get_leader_tools(session_id=session_id)
             system_prompt = self._build_leader_system_prompt(history_context=history_context)
+
+            # Create delegation tool dynamically (closure captures run_context)
+            if self.config.delegate_to_all:
+                async def delegate_task_to_all_members(task: str) -> str:
+                    """Delegate a task to ALL team members at once.
+
+                    Use this to get diverse perspectives or brainstorm ideas by sending
+                    the same task to all members simultaneously.
+
+                    Args:
+                        task: Clear description of the task to delegate
+
+                    Returns:
+                        Combined responses from all team members
+                    """
+                    results = []
+                    for member in self.config.members:
+                        member_result = await self._run_member(
+                            member, task, session_id=run_context.session_id
+                        )
+                        results.append(f"{member.name}: {member_result.response}")
+                    return "\n\n".join(results)
+
+                delegate_tool = create_tool_from_function(delegate_task_to_all_members)
+            else:
+                async def delegate_task_to_member(member_id: str, task: str) -> str:
+                    """Delegate a task to a specific team member by their ID.
+
+                    Use this to assign work to the team member best suited for the task.
+                    Available members and their IDs are listed in the team_members section.
+
+                    Args:
+                        member_id: ID of the team member to delegate to (e.g., 'hn_researcher', 'article_reader')
+                        task: Clear description of the task to delegate
+
+                    Returns:
+                        The member's response to the delegated task
+                    """
+                    # Find member by ID
+                    member_config = None
+                    for m in self.config.members:
+                        if m.id == member_id:
+                            member_config = m
+                            break
+
+                    if not member_config:
+                        return f"Error: Member with ID '{member_id}' not found in team. Available members: {', '.join([m.id for m in self.config.members])}"
+
+                    # Execute member run
+                    result = await self._run_member(
+                        member_config, task, session_id=run_context.session_id
+                    )
+
+                    if result.success:
+                        return f"{member_config.name} completed task:\n{result.response}"
+                    else:
+                        return f"{member_config.name} failed: {result.error}"
+
+                delegate_tool = create_tool_from_function(
+                    delegate_task_to_member,
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "member_id": {
+                                "type": "string",
+                                "enum": [m.id for m in self.config.members],
+                                "description": f"ID of the team member to delegate to. Available: {', '.join([f'{m.id} ({m.name})' for m in self.config.members])}"
+                            },
+                            "task": {
+                                "type": "string",
+                                "description": "Clear description of the task to delegate"
+                            }
+                        },
+                        "required": ["member_id", "task"]
+                    }
+                )
+
+            leader_tools = [delegate_tool]
 
             leader = Agent(
                 llm_client=self.llm_client,
@@ -454,7 +482,7 @@ Focus on your area of expertise and provide clear, actionable responses.
             llm_failed = response_content and response_content.startswith("LLM call failed")
             success = bool(response_content) and not max_steps_reached and not llm_failed
 
-            if session_id:
+            if run_context.session_id:
                 leader_run_record = RunRecord(
                     run_id=self._current_run_id,
                     parent_run_id=None,  # Leader has no parent
@@ -470,7 +498,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                         "member_count": len(self.member_runs)
                     }
                 )
-                await self.session_manager.add_run(session_id, leader_run_record)
+                await self.session_manager.add_run(run_context.session_id, leader_run_record)
 
             trace.log_agent_end("Leader", success, response_content, leader_steps, leader_input_tokens, leader_output_tokens)
             trace.end_trace(success=success, result=response_content)
@@ -484,7 +512,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                 total_steps=total_steps,
                 iterations=len(self.member_runs),
                 metadata={
-                    "session_id": session_id,
+                    "session_id": run_context.session_id,
                     "run_id": self._current_run_id,
                     "trace_id": trace.trace_id,
                     "input_tokens": leader_input_tokens,
@@ -497,7 +525,7 @@ Focus on your area of expertise and provide clear, actionable responses.
             trace.end_trace(success=False, result=str(e))
             set_current_trace(None)
 
-            if session_id:
+            if run_context.session_id:
                 error_run_record = RunRecord(
                     run_id=self._current_run_id,
                     parent_run_id=None,
@@ -510,7 +538,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                     timestamp=time.time(),
                     metadata={"error": str(e)}
                 )
-                await self.session_manager.add_run(session_id, error_run_record)
+                await self.session_manager.add_run(run_context.session_id, error_run_record)
 
             return TeamRunResponse(
                 success=False,
