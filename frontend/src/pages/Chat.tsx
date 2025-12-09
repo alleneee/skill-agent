@@ -1,12 +1,20 @@
 // Simple MVP Chat Page
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Send, Loader2, Trash2, Plus, Bot, User, Database } from 'lucide-react';
+import { Send, Loader2, Trash2, Plus, Bot, User, Database, Bug } from 'lucide-react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useAgentStream } from '@/hooks/useAgentStream';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+
+function cleanContent(content: string): string {
+  if (!content) return content;
+  return content
+    .replace(/<has_function_call>[A-Za-z0-9.\-\s]*/g, '')
+    .replace(/<\/has_function_call>/g, '')
+    .replace(/^\s+/, '');
+}
 
 export default function Chat() {
   const [input, setInput] = useState('');
@@ -47,10 +55,16 @@ export default function Chat() {
     await sendMessage(message);
   };
 
-  const allMessages = [
-    ...(currentSession?.messages || []),
-    ...(streamingMessage ? [streamingMessage] : []),
-  ];
+  const allMessages = useMemo(() => {
+    const messages = [
+      ...(currentSession?.messages || []),
+      ...(streamingMessage ? [streamingMessage] : []),
+    ];
+    return messages.map(msg => ({
+      ...msg,
+      content: msg.role === 'assistant' ? cleanContent(msg.content) : msg.content,
+    }));
+  }, [currentSession?.messages, streamingMessage]);
 
   return (
     <div className="flex h-screen bg-[var(--bg-primary)]">
@@ -105,6 +119,17 @@ export default function Chat() {
               <Database className="w-4 h-4 text-white" />
             </div>
             <div className="font-medium">知识库</div>
+          </Link>
+
+          {/* Debug Console Link */}
+          <Link
+            to="/debug"
+            className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-[var(--bg-sidebar-hover)] cursor-pointer transition-colors text-sm"
+          >
+            <div className="w-8 h-8 rounded bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center">
+              <Bug className="w-4 h-4 text-white" />
+            </div>
+            <div className="font-medium">调试控制台</div>
           </Link>
 
           {/* User Profile */}

@@ -2,6 +2,14 @@
 import { create } from 'zustand';
 import type { Message, ToolCall } from '@/types/message';
 
+function cleanContent(content: string): string {
+  if (!content) return content;
+  return content
+    .replace(/<has_function_call>[A-Za-z0-9.\-\s]*/g, '')
+    .replace(/<\/has_function_call>/g, '')
+    .replace(/^\s+/, '');
+}
+
 interface ChatState {
   // Current message being streamed
   streamingMessage: Message | null;
@@ -55,7 +63,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   stopStreaming: () => {
     set((state) => ({
       streamingMessage: state.streamingMessage
-        ? { ...state.streamingMessage, isStreaming: false }
+        ? {
+            ...state.streamingMessage,
+            content: cleanContent(state.streamingMessage.content),
+            isStreaming: false
+          }
         : null,
       isStreaming: false,
     }));
@@ -134,6 +146,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   getStreamingMessage: () => {
-    return get().streamingMessage;
+    const msg = get().streamingMessage;
+    if (!msg) return null;
+    return {
+      ...msg,
+      content: cleanContent(msg.content),
+    };
   },
 }));

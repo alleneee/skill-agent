@@ -23,6 +23,7 @@ dependencies = [
     "pgvector>=0.3.0",  # pgvector Python bindings
     "pypdf>=4.0.0",  # PDF parsing
     "openai>=1.0.0",  # For DashScope API (OpenAI compatible)
+    "litellm>=1.50.0",  # Multi-provider LLM support (100+ providers)
 ]
 
 [project.optional-dependencies]

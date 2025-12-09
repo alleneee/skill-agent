@@ -47,7 +47,7 @@ def get_llm_client(settings: Annotated[Settings, Depends(get_settings)]) -> LLMC
     """
     return LLMClient(
         api_key=settings.LLM_API_KEY,
-        api_base=settings.LLM_API_BASE,
+        api_base=settings.LLM_API_BASE if settings.LLM_API_BASE else None,
         model=settings.LLM_MODEL,
     )
 

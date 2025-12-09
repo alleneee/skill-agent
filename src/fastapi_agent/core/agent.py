@@ -47,7 +47,7 @@ class Agent:
             token_limit: Token 限制
             enable_summarization: 是否启用自动摘要
             enable_logging: 是否启用日志
-            log_dir: 日志目录
+            log_dir: 已废弃，日志目录现在由 RUN_LOG_DIR 配置
             name: Agent 名称
             skill_loader: Skill 加载器(用于注入 skills 元数据到系统提示)
             tool_output_limit: 工具输出最大字符数(防止Token爆炸)
@@ -70,7 +70,7 @@ class Agent:
         # Initialize Agent Logger
         self.enable_logging = enable_logging
         if enable_logging:
-            self.logger = AgentLogger(log_dir=log_dir)
+            self.logger = AgentLogger()
         else:
             self.logger = None
 
@@ -246,6 +246,8 @@ class Agent:
                     content=response.content,
                     thinking=response.thinking,
                     tool_calls=response.tool_calls,
+                    input_tokens=response.usage.input_tokens if response.usage else None,
+                    output_tokens=response.usage.output_tokens if response.usage else None,
                 )
 
             # Add assistant message

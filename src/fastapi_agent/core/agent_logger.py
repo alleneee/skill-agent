@@ -1,135 +1,181 @@
-"""Agent run logger with structured logging."""
+"""Agent run logger with structured logging and pluggable storage."""
 
+import asyncio
 import json
-import time
+import logging
 from datetime import datetime
-from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
+from fastapi_agent.core.config import settings
+from fastapi_agent.core.run_log_storage import RunLogStorage, get_run_log_storage
 from fastapi_agent.schemas.message import Message, ToolCall
+
+logger = logging.getLogger(__name__)
 
 
 class AgentLogger:
-    """Agent run logger for recording complete interaction process.
+    """Agent run logger with async storage backend support.
 
-    Features:
-    - Records each agent run to separate log file
-    - JSON-structured logging for easy parsing
-    - Tracks LLM requests/responses, tool calls, and results
-    - Logs stored in ~/.fastapi-agent/log/ directory
-
-    Each log file contains a complete trace of an agent run, including:
-    - User message
-    - LLM requests and responses (with thinking)
-    - Tool calls and execution results
-    - Token usage and performance metrics
+    Supports both file storage and Redis storage for cloud debugging.
     """
 
-    def __init__(self, log_dir: str | None = None, retention_days: int = 30):
-        """Initialize logger.
-
-        Args:
-            log_dir: Custom log directory (defaults to ~/.fastapi-agent/log/)
-            retention_days: Number of days to retain log files (default 30)
-        """
-        # Use ~/.fastapi-agent/log/ directory for logs
-        if log_dir:
-            self.log_dir = Path(log_dir)
-        else:
-            self.log_dir = Path.home() / ".fastapi-agent" / "log"
-
-        self.log_dir.mkdir(parents=True, exist_ok=True)
-        self.log_file: Path | None = None
+    def __init__(self, storage: Optional[RunLogStorage] = None):
+        self._storage = storage
+        self.run_id: Optional[str] = None
         self.log_index = 0
-        self.retention_days = retention_days
 
-        # Clean up old logs on initialization
-        self._cleanup_old_logs()
+    async def _get_storage(self) -> RunLogStorage:
+        if self._storage is None:
+            self._storage = await get_run_log_storage()
+        return self._storage
 
-    def _cleanup_old_logs(self) -> int:
-        """Clean up log files older than retention_days.
-
-        Returns:
-            Number of files deleted
-        """
-        if not self.log_dir.exists():
-            return 0
-
-        deleted_count = 0
-        cutoff_time = time.time() - (self.retention_days * 24 * 60 * 60)
-
-        for log_file in self.log_dir.glob("agent_run_*.log"):
+    def _save_event_sync(self, event: dict) -> None:
+        self._log_to_console(event)
+        if settings.ENABLE_DEBUG_LOGGING:
             try:
-                # Check file modification time
-                if log_file.stat().st_mtime < cutoff_time:
-                    log_file.unlink()
-                    deleted_count += 1
-            except (OSError, PermissionError):
-                # Skip files that can't be deleted
-                pass
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._save_event_async(event))
+            except RuntimeError:
+                asyncio.run(self._save_event_async(event))
 
-        if deleted_count > 0:
-            print(f"🧹 Cleaned up {deleted_count} old log files (>{self.retention_days} days)")
+    def _log_to_console(self, event: dict) -> None:
+        event_type = event.get("type", "UNKNOWN")
+        data = event.get("data", {})
 
-        return deleted_count
+        if event_type == "RUN_START":
+            logger.info(f"\n{'='*80}")
+            logger.info(f"[RUN_START] run_id={data.get('run_id')}")
+            logger.info(f"{'='*80}")
 
-    def start_new_run(self, run_id: str | None = None) -> Path:
-        """Start new run, create new log file.
+        elif event_type == "STEP":
+            step = data.get('step', 0)
+            max_steps = data.get('max_steps', 0)
+            token_count = data.get('token_count', 0)
+            token_limit = data.get('token_limit', 0)
+            usage_pct = data.get('token_usage_percent', 0)
+            logger.info(f"\n[STEP] {step}/{max_steps} | tokens={token_count:,}/{token_limit:,} ({usage_pct:.1f}%)")
 
-        Args:
-            run_id: Optional custom run ID (defaults to timestamp)
+        elif event_type == "REQUEST":
+            tools = data.get("tools", [])
+            messages = data.get("messages", [])
+            token_count = data.get("token_count", 0)
 
-        Returns:
-            Path to the created log file
-        """
+            logger.info(f"\n{'-'*80}")
+            logger.info(f"[REQUEST] messages={len(messages)} tools={len(tools)} tokens={token_count:,}")
+            logger.info(f"[REQUEST] tools: {json.dumps(tools, ensure_ascii=False)}")
+
+            for i, msg in enumerate(messages):
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")
+                tool_calls = msg.get("tool_calls", [])
+
+                if role == "system":
+                    preview = content[:800] + "..." if len(content) > 800 else content
+                    logger.info(f"[REQUEST] msg[{i}] role=system content={json.dumps(preview, ensure_ascii=False)}")
+                elif role == "user":
+                    logger.info(f"[REQUEST] msg[{i}] role=user content={json.dumps(content, ensure_ascii=False)}")
+                elif role == "assistant":
+                    if tool_calls:
+                        logger.info(f"[REQUEST] msg[{i}] role=assistant tool_calls={json.dumps(tool_calls, ensure_ascii=False)}")
+                    if content:
+                        preview = content[:300] + "..." if len(content) > 300 else content
+                        logger.info(f"[REQUEST] msg[{i}] role=assistant content={json.dumps(preview, ensure_ascii=False)}")
+                elif role == "tool":
+                    tool_name = msg.get("name", "unknown")
+                    tool_call_id = msg.get("tool_call_id", "")
+                    preview = content[:500] + "..." if len(content) > 500 else content
+                    logger.info(f"[REQUEST] msg[{i}] role=tool name={tool_name} tool_call_id={tool_call_id}")
+                    logger.info(f"[REQUEST] msg[{i}] content={json.dumps(preview, ensure_ascii=False)}")
+
+        elif event_type == "RESPONSE":
+            content = data.get("content", "")
+            thinking = data.get("thinking", "")
+            tool_calls = data.get("tool_calls", [])
+            finish_reason = data.get("finish_reason", "")
+            input_tokens = data.get("input_tokens", 0)
+            output_tokens = data.get("output_tokens", 0)
+
+            logger.info(f"\n{'-'*80}")
+            logger.info(f"[RESPONSE] input_tokens={input_tokens:,} output_tokens={output_tokens:,} finish_reason={finish_reason}")
+
+            if thinking:
+                preview = thinking[:500] + "..." if len(thinking) > 500 else thinking
+                logger.info(f"[RESPONSE] thinking={json.dumps(preview, ensure_ascii=False)}")
+
+            if tool_calls:
+                logger.info(f"[RESPONSE] tool_calls={json.dumps(tool_calls, ensure_ascii=False)}")
+
+            if content:
+                preview = content[:800] + "..." if len(content) > 800 else content
+                logger.info(f"[RESPONSE] content={json.dumps(preview, ensure_ascii=False)}")
+
+        elif event_type == "TOOL_EXECUTION":
+            tool_name = data.get("tool_name", "unknown")
+            arguments = data.get("arguments", {})
+            success = data.get("success", False)
+            exec_time = data.get("execution_time_seconds", 0)
+            result = data.get("result", "")
+            error = data.get("error", "")
+            result_len = data.get("result_length", len(result or ""))
+
+            logger.info(f"\n{'-'*80}")
+            logger.info(f"[TOOL_EXECUTION] tool={tool_name} success={success} time={exec_time:.3f}s result_length={result_len}")
+            logger.info(f"[TOOL_EXECUTION] arguments={json.dumps(arguments, ensure_ascii=False)}")
+
+            if success and result:
+                preview = result[:1000] + "..." if len(result) > 1000 else result
+                logger.info(f"[TOOL_EXECUTION] result={json.dumps(preview, ensure_ascii=False)}")
+            elif error:
+                logger.info(f"[TOOL_EXECUTION] error={json.dumps(error, ensure_ascii=False)}")
+
+        elif event_type == "COMPLETION":
+            steps = data.get("total_steps", 0)
+            reason = data.get("reason", "unknown")
+            final_response = data.get("final_response", "")
+
+            logger.info(f"\n{'='*80}")
+            logger.info(f"[COMPLETION] total_steps={steps} reason={reason}")
+            if final_response:
+                preview = final_response[:500] + "..." if len(final_response) > 500 else final_response
+                logger.info(f"[COMPLETION] final_response={json.dumps(preview, ensure_ascii=False)}")
+            logger.info(f"{'='*80}\n")
+
+    async def _save_event_async(self, event: dict) -> None:
+        if not self.run_id:
+            return
+        storage = await self._get_storage()
+        await storage.save_event(self.run_id, event)
+
+    def start_new_run(self, run_id: Optional[str] = None) -> str:
         if run_id:
-            log_filename = f"agent_run_{run_id}.log"
+            self.run_id = run_id
         else:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_filename = f"agent_run_{timestamp}.log"
-
-        self.log_file = self.log_dir / log_filename
+            self.run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log_index = 0
 
-        # Write log header
-        with open(self.log_file, "w", encoding="utf-8") as f:
-            f.write("=" * 80 + "\n")
-            f.write(f"FastAPI Agent Run Log - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"Log File: {self.log_file}\n")
-            f.write("=" * 80 + "\n\n")
-
-        return self.log_file
+        self._save_event_sync({
+            "type": "RUN_START",
+            "index": 0,
+            "data": {"run_id": self.run_id}
+        })
+        return self.run_id
 
     def log_request(
         self,
         messages: list[Message],
-        tools: list[dict[str, Any]] | None = None,
-        token_count: int | None = None,
+        tools: Optional[list[dict[str, Any]]] = None,
+        token_count: Optional[int] = None,
     ):
-        """Log LLM request.
-
-        Args:
-            messages: Message list
-            tools: Tool schema list (optional)
-            token_count: Current token count (optional)
-        """
         self.log_index += 1
-
-        # Build complete request data structure
         request_data = {
             "messages": [],
-            "tools": [],
+            "tools": [t.get("name", "unknown") for t in (tools or [])],
         }
-
         if token_count is not None:
             request_data["token_count"] = token_count
 
-        # Convert messages to JSON serializable format
         for msg in messages:
-            msg_dict = {
-                "role": msg.role,
-                "content": msg.content,
-            }
+            msg_dict = {"role": msg.role, "content": msg.content}
             if msg.thinking:
                 msg_dict["thinking"] = msg.thinking
             if msg.tool_calls:
@@ -137,10 +183,7 @@ class AgentLogger:
                     {
                         "id": tc.id,
                         "type": tc.type,
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments,
-                        }
+                        "function": {"name": tc.function.name, "arguments": tc.function.arguments}
                     }
                     for tc in msg.tool_calls
                 ]
@@ -148,146 +191,101 @@ class AgentLogger:
                 msg_dict["tool_call_id"] = msg.tool_call_id
             if msg.name:
                 msg_dict["name"] = msg.name
-
             request_data["messages"].append(msg_dict)
 
-        # Only record tool names
-        if tools:
-            request_data["tools"] = [tool.get("name", "unknown") for tool in tools]
-
-        # Format as JSON
-        content = "LLM Request:\n\n"
-        content += json.dumps(request_data, indent=2, ensure_ascii=False)
-
-        self._write_log("REQUEST", content)
+        self._save_event_sync({
+            "type": "REQUEST",
+            "index": self.log_index,
+            "data": request_data
+        })
 
     def log_response(
         self,
         content: str,
-        thinking: str | None = None,
-        tool_calls: list[ToolCall] | None = None,
-        finish_reason: str | None = None,
+        thinking: Optional[str] = None,
+        tool_calls: Optional[list[ToolCall]] = None,
+        finish_reason: Optional[str] = None,
+        input_tokens: Optional[int] = None,
+        output_tokens: Optional[int] = None,
     ):
-        """Log LLM response.
-
-        Args:
-            content: Response content
-            thinking: Thinking content (optional)
-            tool_calls: Tool call list (optional)
-            finish_reason: Finish reason (optional)
-        """
         self.log_index += 1
-
-        # Build complete response data structure
-        response_data = {
-            "content": content,
-        }
-
+        response_data = {"content": content}
         if thinking:
             response_data["thinking"] = thinking
-
         if tool_calls:
             response_data["tool_calls"] = [
                 {
                     "id": tc.id,
                     "type": tc.type,
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments,
-                    }
+                    "function": {"name": tc.function.name, "arguments": tc.function.arguments}
                 }
                 for tc in tool_calls
             ]
-
         if finish_reason:
             response_data["finish_reason"] = finish_reason
+        if input_tokens is not None:
+            response_data["input_tokens"] = input_tokens
+        if output_tokens is not None:
+            response_data["output_tokens"] = output_tokens
 
-        # Format as JSON
-        log_content = "LLM Response:\n\n"
-        log_content += json.dumps(response_data, indent=2, ensure_ascii=False)
-
-        self._write_log("RESPONSE", log_content)
+        self._save_event_sync({
+            "type": "RESPONSE",
+            "index": self.log_index,
+            "data": response_data
+        })
 
     def log_tool_execution(
         self,
         tool_name: str,
         arguments: dict[str, Any],
         success: bool,
-        content: str | None = None,
-        error: str | None = None,
-        execution_time: float | None = None,
+        content: Optional[str] = None,
+        error: Optional[str] = None,
+        execution_time: Optional[float] = None,
     ):
-        """Log tool execution result.
-
-        Args:
-            tool_name: Tool name
-            arguments: Tool arguments
-            success: Whether successful
-            content: Result content (on success)
-            error: Error message (on failure)
-            execution_time: Execution time in seconds (optional)
-        """
         self.log_index += 1
-
-        # Build complete tool execution result data structure
-        tool_result_data = {
+        tool_data = {
             "tool_name": tool_name,
             "arguments": arguments,
             "success": success,
         }
-
         if execution_time is not None:
-            tool_result_data["execution_time_seconds"] = round(execution_time, 3)
-
+            tool_data["execution_time_seconds"] = round(execution_time, 3)
         if success:
-            # Truncate long content for readability
             if content and len(content) > 2000:
-                tool_result_data["result"] = content[:2000] + "\n...(truncated)"
-                tool_result_data["result_length"] = len(content)
+                tool_data["result"] = content[:2000] + "\n...(truncated)"
+                tool_data["result_length"] = len(content)
             else:
-                tool_result_data["result"] = content
+                tool_data["result"] = content
         else:
-            tool_result_data["error"] = error
+            tool_data["error"] = error
 
-        # Format as JSON
-        log_content = "Tool Execution:\n\n"
-        log_content += json.dumps(tool_result_data, indent=2, ensure_ascii=False)
-
-        self._write_log("TOOL_EXECUTION", log_content)
+        self._save_event_sync({
+            "type": "TOOL_EXECUTION",
+            "index": self.log_index,
+            "data": tool_data
+        })
 
     def log_step(
         self,
         step: int,
         max_steps: int,
-        token_count: int | None = None,
-        token_limit: int | None = None,
+        token_count: Optional[int] = None,
+        token_limit: Optional[int] = None,
     ):
-        """Log agent step information.
-
-        Args:
-            step: Current step number
-            max_steps: Maximum steps
-            token_count: Current token count (optional)
-            token_limit: Token limit (optional)
-        """
         self.log_index += 1
-
-        step_data = {
-            "step": step,
-            "max_steps": max_steps,
-        }
-
+        step_data = {"step": step, "max_steps": max_steps}
         if token_count is not None:
             step_data["token_count"] = token_count
-
         if token_limit is not None:
             step_data["token_limit"] = token_limit
             step_data["token_usage_percent"] = round((token_count / token_limit) * 100, 2)
 
-        content = "Agent Step:\n\n"
-        content += json.dumps(step_data, indent=2, ensure_ascii=False)
-
-        self._write_log("STEP", content)
+        self._save_event_sync({
+            "type": "STEP",
+            "index": self.log_index,
+            "data": step_data
+        })
 
     def log_completion(
         self,
@@ -295,75 +293,24 @@ class AgentLogger:
         total_steps: int,
         reason: str = "task_completed",
     ):
-        """Log agent run completion.
-
-        Args:
-            final_response: Final response content
-            total_steps: Total steps executed
-            reason: Completion reason (task_completed, max_steps_reached, error)
-        """
         self.log_index += 1
+        self._save_event_sync({
+            "type": "COMPLETION",
+            "index": self.log_index,
+            "data": {
+                "final_response": final_response,
+                "total_steps": total_steps,
+                "reason": reason
+            }
+        })
 
-        completion_data = {
-            "final_response": final_response,
-            "total_steps": total_steps,
-            "reason": reason,
-        }
-
-        content = "Run Completion:\n\n"
-        content += json.dumps(completion_data, indent=2, ensure_ascii=False)
-
-        self._write_log("COMPLETION", content)
-
-        # Write footer
-        if self.log_file:
-            with open(self.log_file, "a", encoding="utf-8") as f:
-                f.write("\n" + "=" * 80 + "\n")
-                f.write(f"Run completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write("=" * 80 + "\n")
-
-    def log_event(self, event_type: str, data: dict[str, Any] | None = None):
-        """Log a general event.
-
-        Args:
-            event_type: Event type identifier
-            data: Event data dictionary (optional)
-        """
+    def log_event(self, event_type: str, data: Optional[dict[str, Any]] = None):
         self.log_index += 1
+        self._save_event_sync({
+            "type": "EVENT",
+            "index": self.log_index,
+            "data": {"event_type": event_type, **(data or {})}
+        })
 
-        event_data = {
-            "event_type": event_type,
-        }
-
-        if data:
-            event_data.update(data)
-
-        content = f"Event ({event_type}):\n\n"
-        content += json.dumps(event_data, indent=2, ensure_ascii=False)
-
-        self._write_log("EVENT", content)
-
-    def _write_log(self, log_type: str, content: str):
-        """Write log entry.
-
-        Args:
-            log_type: Log type (REQUEST, RESPONSE, TOOL_EXECUTION, STEP, COMPLETION)
-            content: Log content
-        """
-        if self.log_file is None:
-            return
-
-        with open(self.log_file, "a", encoding="utf-8") as f:
-            f.write("\n" + "-" * 80 + "\n")
-            f.write(f"[{self.log_index}] {log_type}\n")
-            f.write(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}\n")
-            f.write("-" * 80 + "\n")
-            f.write(content + "\n")
-
-    def get_log_file_path(self) -> Path | None:
-        """Get current log file path.
-
-        Returns:
-            Path to log file, or None if no run has been started
-        """
-        return self.log_file
+    def get_run_id(self) -> Optional[str]:
+        return self.run_id
