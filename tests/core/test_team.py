@@ -125,7 +125,7 @@ def test_run_member_success(llm_client, sample_team_config, available_tools):
         available_tools=available_tools
     )
 
-    # Mock agent run
+    # Mock agents run
     mock_response = {
         "success": True,
         "message": "Research completed",
@@ -170,7 +170,7 @@ def test_run_member_with_tools(llm_client, sample_team_config, available_tools):
         member_config = sample_team_config.members[1]
         result = team._run_member(member_config, "Write documentation")
 
-        # Check that agent was created with write_file tool
+        # Check that agents was created with write_file tool
         call_args = MockAgent.call_args
         agent_tools = call_args[1]["tools"]
 
@@ -205,7 +205,7 @@ def test_team_run_integration(llm_client, sample_team_config, available_tools):
         available_tools=available_tools
     )
 
-    # Mock leader agent run
+    # Mock leader agents run
     mock_leader_response = {
         "success": True,
         "message": "Task completed by delegating to team members",

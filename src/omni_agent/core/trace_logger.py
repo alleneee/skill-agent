@@ -12,12 +12,12 @@
     - MESSAGE_PASS: 任务间消息传递
 
 输出文件:
-    - ~/.omni-agent/traces/trace_<type>_<timestamp>_<id>.jsonl (事件流)
-    - ~/.omni-agent/traces/trace_*.summary.json (执行摘要)
+    - ~/.omni-agents/traces/trace_<type>_<timestamp>_<id>.jsonl (事件流)
+    - ~/.omni-agents/traces/trace_*.summary.json (执行摘要)
 
 装饰器:
     - @traced.workflow: 追踪整个工作流
-    - @traced.agent: 追踪 Agent 执行
+    - @traced.agents: 追踪 Agent 执行
     - @traced.delegation: 追踪任务委派
     - @traced.task: 追踪依赖任务
 
@@ -101,7 +101,7 @@ class TraceLogger:
         """Initialize trace logger.
 
         Args:
-            log_dir: Log directory (defaults to ~/.omni-agent/traces/)
+            log_dir: Log directory (defaults to ~/.omni-agents/traces/)
             write_file: Write trace events to JSONL file
             write_log: Output trace events to logging
         """
@@ -111,7 +111,7 @@ class TraceLogger:
         if log_dir:
             self.log_dir = Path(log_dir)
         else:
-            self.log_dir = Path.home() / ".omni-agent" / "traces"
+            self.log_dir = Path.home() / ".omni-agents" / "traces"
 
         if self.write_file:
             self.log_dir.mkdir(parents=True, exist_ok=True)
@@ -175,7 +175,7 @@ class TraceLogger:
         parent_agent: Optional[str] = None,
         depth: int = 0
     ):
-        """Log agent execution start."""
+        """Log agents execution start."""
         agent_id = f"{agent_name}_{len(self.agent_stack)}"
         agent_info = {
             "agent_id": agent_id,
@@ -209,7 +209,7 @@ class TraceLogger:
         input_tokens: int = 0,
         output_tokens: int = 0
     ):
-        """Log agent execution end."""
+        """Log agents execution end."""
         if not self.agent_stack:
             return
 
@@ -497,7 +497,7 @@ class TraceLogger:
         }
 
     def get_current_agent(self) -> Optional[str]:
-        """Get current executing agent name."""
+        """Get current executing agents name."""
         if self.agent_stack:
             return self.agent_stack[-1]["agent_id"]
         return None
@@ -566,7 +566,7 @@ def trace_agent(
 
             self_obj = args[0] if args else None
             agent_name = getattr(self_obj, name_attr, "unknown") if self_obj else "unknown"
-            agent_role = getattr(self_obj, role_attr, "agent") if self_obj else "agent"
+            agent_role = getattr(self_obj, role_attr, "agents") if self_obj else "agents"
             task = kwargs.get(task_param, str(args[1]) if len(args) > 1 else "")
 
             trace.log_agent_start(agent_name, agent_role, task, depth=depth)
@@ -593,7 +593,7 @@ def trace_agent(
 
             self_obj = args[0] if args else None
             agent_name = getattr(self_obj, name_attr, "unknown") if self_obj else "unknown"
-            agent_role = getattr(self_obj, role_attr, "agent") if self_obj else "agent"
+            agent_role = getattr(self_obj, role_attr, "agents") if self_obj else "agents"
             task = kwargs.get(task_param, str(args[1]) if len(args) > 1 else "")
 
             trace.log_agent_start(agent_name, agent_role, task, depth=depth)

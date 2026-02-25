@@ -7,7 +7,7 @@ from omni_agent.core.config import settings
 api_router = APIRouter()
 
 # 包含端点路由器
-api_router.include_router(agent.router, prefix="/agent", tags=["agent"])
+api_router.include_router(agent.router, prefix="/agents", tags=["agents"])
 api_router.include_router(team.router, tags=["team"])
 api_router.include_router(tools.router, prefix="/tools", tags=["tools"])
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])

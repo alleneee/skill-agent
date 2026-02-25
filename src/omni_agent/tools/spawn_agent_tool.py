@@ -51,7 +51,7 @@ class SpawnAgentTool(Tool):
 
     @property
     def description(self) -> str:
-        return """Spawn a specialized sub-agent to handle a specific task autonomously.
+        return """Spawn a specialized sub-agents to handle a specific task autonomously.
 
 Use this when:
 - A task requires specialized expertise or a different approach
@@ -59,7 +59,7 @@ Use this when:
 - You need focused work on a specific problem without cluttering your main context
 - Parallel exploration of different solutions
 
-The sub-agent will execute the task and return its final result to you.
+The sub-agents will execute the task and return its final result to you.
 You remain in control and can use the result to continue your work.
 
 Current depth: {depth}/{max_depth}""".format(
@@ -74,11 +74,11 @@ Current depth: {depth}/{max_depth}""".format(
             "properties": {
                 "task": {
                     "type": "string",
-                    "description": "Clear, specific description of what the sub-agent should accomplish"
+                    "description": "Clear, specific description of what the sub-agents should accomplish"
                 },
                 "role": {
                     "type": "string",
-                    "description": "Specialized role for the sub-agent (e.g., 'security auditor', 'test writer', 'documentation expert')"
+                    "description": "Specialized role for the sub-agents (e.g., 'security auditor', 'test writer', 'documentation expert')"
                 },
                 "context": {
                     "type": "string",
@@ -93,7 +93,7 @@ Current depth: {depth}/{max_depth}""".format(
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 30,
-                    "description": f"Maximum steps for sub-agent execution (default: {self._default_max_steps})"
+                    "description": f"Maximum steps for sub-agents execution (default: {self._default_max_steps})"
                 }
             },
             "required": ["task"]
@@ -106,8 +106,8 @@ Current depth: {depth}/{max_depth}""".format(
 When using spawn_agent to delegate tasks:
 
 1. **Be specific**: Provide clear, focused tasks with concrete success criteria
-2. **Provide context**: Share relevant information the sub-agent needs to understand the task
-3. **Choose appropriate tools**: Only enable tools the sub-agent actually needs
+2. **Provide context**: Share relevant information the sub-agents needs to understand the task
+3. **Choose appropriate tools**: Only enable tools the sub-agents actually needs
 4. **Set reasonable limits**: Use smaller max_steps for simple tasks (5-10), larger for complex ones (15-25)
 
 ### Good use cases:
@@ -164,20 +164,20 @@ spawn_agent(
         if self._current_depth >= self._max_depth:
             return ToolResult(
                 success=False,
-                error=f"Maximum agent nesting depth ({self._max_depth}) reached. Cannot spawn more sub-agents. Consider completing the task with available tools instead."
+                error=f"Maximum agents nesting depth ({self._max_depth}) reached. Cannot spawn more sub-agents. Consider completing the task with available tools instead."
             )
 
         try:
-            # Build sub-agent tools
+            # Build sub-agents tools
             sub_tools = self._build_sub_agent_tools(tools)
 
-            # Build system prompt for sub-agent
+            # Build system prompt for sub-agents
             system_prompt = self._build_sub_agent_prompt(role, context)
 
             # Determine max_steps
             effective_max_steps = min(max_steps or self._default_max_steps, 30)
 
-            # Create sub-agent
+            # Create sub-agents
             sub_agent = Agent(
                 llm_client=self._llm_client,
                 system_prompt=system_prompt,
@@ -190,7 +190,7 @@ spawn_agent(
                 name=f"sub_agent_d{self._current_depth + 1}_{role or 'general'}",
             )
 
-            # Log sub-agent spawn event
+            # Log sub-agents spawn event
             if self._parent_logger:
                 self._parent_logger.log_event("SUB_AGENT_SPAWN", {
                     "task": task[:200],  # Truncate for logging
@@ -201,7 +201,7 @@ spawn_agent(
                     "max_steps": effective_max_steps,
                 })
 
-            # Run sub-agent
+            # Run sub-agents
             sub_agent.add_user_message(task)
             result, logs = await sub_agent.run()
 
@@ -221,7 +221,7 @@ spawn_agent(
                     "success": len(errors) == 0,
                 })
 
-            # Format result for parent agent
+            # Format result for parent agents
             formatted_result = self._format_result(
                 task=task,
                 role=role,
@@ -234,7 +234,7 @@ spawn_agent(
             return ToolResult(success=True, content=formatted_result)
 
         except Exception as e:
-            error_msg = f"Sub-agent execution failed: {str(e)}"
+            error_msg = f"Sub-agents execution failed: {str(e)}"
 
             if self._parent_logger:
                 self._parent_logger.log_event("SUB_AGENT_ERROR", {
@@ -313,7 +313,7 @@ spawn_agent(
 
         # Core instructions
         parts.append("""
-Your task has been delegated from a parent agent. Focus on completing it efficiently and thoroughly.
+Your task has been delegated from a parent agents. Focus on completing it efficiently and thoroughly.
 
 ## Guidelines
 - Stay focused on the assigned task - do not deviate

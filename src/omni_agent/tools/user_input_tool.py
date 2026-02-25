@@ -1,6 +1,6 @@
 """用户输入工具，用于人机交互循环。
 
-此工具允许 agent 在需要时暂停执行并向用户请求额外信息。
+此工具允许 agents 在需要时暂停执行并向用户请求额外信息。
 
 灵感来自 agno 的 UserControlFlowTools 实现。
 """
@@ -35,11 +35,11 @@ class UserInputRequest(BaseModel):
 
 
 class GetUserInputTool(Tool):
-    """在 agent 执行期间请求用户输入的工具。
+    """在 agents 执行期间请求用户输入的工具。
 
-    当 agent 需要额外信息才能继续时，可以调用此工具暂停执行并向用户请求输入。
+    当 agents 需要额外信息才能继续时，可以调用此工具暂停执行并向用户请求输入。
 
-    工具执行本身不做任何事情 - agent 循环检测到此工具调用后会处理暂停/恢复逻辑。
+    工具执行本身不做任何事情 - agents 循环检测到此工具调用后会处理暂停/恢复逻辑。
     """
     
     TOOL_NAME = "get_user_input"
@@ -148,9 +148,9 @@ You have access to the `get_user_input` tool to request information from the use
         context: Optional[str] = None,
         **kwargs
     ) -> ToolResult:
-        """执行工具 - 实际逻辑由 agent 循环处理。
+        """执行工具 - 实际逻辑由 agents 循环处理。
 
-        此方法会被调用，但真正的处理发生在 agent 的执行循环中，
+        此方法会被调用，但真正的处理发生在 agents 的执行循环中，
         它会检测到此工具并暂停等待用户输入。
 
         Args:
@@ -160,7 +160,7 @@ You have access to the `get_user_input` tool to request information from the use
         Returns:
             表示请求已注册的 ToolResult
         """
-        # The actual pause/resume logic is handled by the agent loop
+        # The actual pause/resume logic is handled by the agents loop
         # This just returns a placeholder result
         return ToolResult(
             success=True,

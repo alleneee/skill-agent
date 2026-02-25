@@ -55,7 +55,7 @@ def get_tools(workspace_dir: str | None = None) -> list[Tool]:
 
 #### ✅ Sequential 策略（顺序执行）
 ```python
-# 创建搜索 agent（使用 exa MCP 工具）
+# 创建搜索 agents（使用 exa MCP 工具）
 search_agent = Agent(
     llm_client=llm_client,
     name="WebSearcher",
@@ -64,7 +64,7 @@ search_agent = Agent(
     max_steps=5
 )
 
-# 创建桌面操作 agent（使用 desktop-commander MCP 工具）
+# 创建桌面操作 agents（使用 desktop-commander MCP 工具）
 desktop_agent = Agent(
     llm_client=llm_client,
     name="DesktopOperator",
@@ -84,7 +84,7 @@ team = AgentTeam(
 
 #### ✅ Broadcast 策略（广播并行）
 ```python
-# 创建两个专门的搜索 agent
+# 创建两个专门的搜索 agents
 tech_searcher = Agent(
     llm_client=llm_client,
     name="TechSearcher",
@@ -99,7 +99,7 @@ news_searcher = Agent(
     tools=exa_tools
 )
 
-# 广播策略：两个 agent 并行搜索
+# 广播策略：两个 agents 并行搜索
 team = AgentTeam(
     members=[tech_searcher, news_searcher],
     strategy=CoordinationStrategy.BROADCAST,
@@ -227,7 +227,7 @@ async def run_custom_team():
     tools = get_tools()
     exa_tools = [t for t in tools if 'exa' in t.name.lower()]
 
-    # 创建带有 MCP 工具的 agent
+    # 创建带有 MCP 工具的 agents
     search_agent = Agent(
         llm_client=llm_client,
         name="Searcher",
@@ -264,7 +264,7 @@ desktop_agent = Agent(
     llm_client=llm_client,
     name="DesktopOperator",
     system_prompt="""你是桌面操作专家，负责使用 desktop-commander 工具执行系统操作。
-根据前一个 agent 提供的信息，执行相应的桌面操作。
+根据前一个 agents 提供的信息，执行相应的桌面操作。
 保持回答简洁明了。""",
     tools=desktop_tools,  # 来自 get_tools() 并过滤 desktop 工具
     max_steps=5

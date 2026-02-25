@@ -6,7 +6,7 @@
 
 ```bash
 # 安装依赖
-cd /path/to/skill-agent
+cd /path/to/skill-agents
 uv sync
 
 # 设置环境变量
@@ -66,7 +66,7 @@ uv run python examples/05_graph_agent_node.py
 uv run python examples/07_team_collaboration.py
 
 # 需要 Sandbox 容器的示例
-docker run -d --security-opt seccomp=unconfined -p 8080:8080 ghcr.io/agent-infra/sandbox:latest
+docker run -d --security-opt seccomp=unconfined -p 8080:8080 ghcr.io/agents-infra/sandbox:latest
 uv run python examples/08_sandbox_execution.py
 
 # Ralph 迭代模式示例

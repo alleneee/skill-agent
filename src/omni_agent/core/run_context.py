@@ -1,7 +1,7 @@
 """Agent 执行的运行上下文.
 
 重要: 此模块仅供框架内部使用。用户不应手动创建 RunContext 实例。
-请使用 team.run() 或 agent.run() 的 session_id 和 user_id 参数。
+请使用 team.run() 或 agents.run() 的 session_id 和 user_id 参数。
 
 设计理念参见 docs/RUNCONTEXT_DESIGN.md
 
@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 
 @dataclass
 class RunContext:
-    """Context information for agent/team run.
+    """Context information for agents/team run.
 
     This class is used internally to pass context between different levels of
     the framework (e.g., from Team to member Agents). Users should not create

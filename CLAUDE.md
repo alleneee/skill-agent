@@ -271,6 +271,41 @@ Team uses Leader-Member pattern for collaborative task execution (`src/omni_agen
 
 **Workflow Tracking**: All team runs are logged in TraceLogger with delegation chains
 
+### MsgHub Event-Driven Multi-Agent Communication
+
+MsgHub provides event-driven message broadcasting between agents (`src/omni_agent/core/msghub.py`):
+
+**Core Mechanism**:
+1. Each agent registers a COMPLETION event handler via EventEmitter
+2. When an agent finishes speaking, the handler auto-broadcasts to all other participants
+3. Other agents receive messages via `observe()` injection into their message history
+
+**Components**:
+- `MsgHub`: Orchestrates multi-agent discussions with event-driven broadcasting
+- `MsgHubConfig`: Configuration (max_rounds, max_steps_per_turn, announcement)
+- `Orchestrator`: Callable that selects the next speaker (defaults to round-robin)
+
+**Agent Methods**:
+- `Agent.observe(msg)`: Inject external message into agent's conversation history
+- `Agent.execute_turn(max_steps)`: Execute one discussion turn, preserving external event handlers
+
+**Usage**:
+```python
+from omni_agent.core import Agent, MsgHub, MsgHubConfig
+
+designer = Agent(llm_client=llm, name="designer", system_prompt="UI designer")
+developer = Agent(llm_client=llm, name="developer", system_prompt="Developer")
+
+config = MsgHubConfig(max_rounds=6, max_steps_per_turn=5, announcement="Design review")
+
+async with MsgHub([designer, developer], config=config) as hub:
+    result = await hub.run("Design a REST API for user auth")
+    hub.add(new_agent)       # Dynamic participant management
+    hub.delete("designer")
+```
+
+**Completion**: Agent responds with `<hub_complete>` tag to signal discussion end.
+
 ### Ralph Iterative Mode
 
 Ralph Loop is an iterative development methodology (`src/omni_agent/core/ralph.py`):
@@ -312,6 +347,60 @@ result, logs = await agent.run(task="Refactor utils module")
 - `get_working_memory`: View memory summary
 - `update_working_memory`: Update progress, findings, todos
 - `signal_completion`: Signal task completion with promise tag
+
+### Task Cancellation
+
+Runtime cancellation mechanism for stopping long-running agent tasks (`src/omni_agent/core/run_manager.py`):
+
+**Architecture**:
+- `RunManager`: Global singleton managing active agent runs
+- `asyncio.Event`: Used for cooperative cancellation signaling
+- Cleanup: Incomplete messages are removed to maintain consistency
+
+**Components**:
+- `RunManager`: Registers/unregisters runs, handles cancellation
+- `RunStatus`: Enum (RUNNING, COMPLETED, CANCELLED, ERROR)
+- `RunInfo`: Dataclass with run metadata and cancel_event
+
+**API Endpoints**:
+- `POST /api/v1/agent/cancel`: Cancel by run_id or session_id
+- `GET /api/v1/agent/runs/active`: List active runs
+
+**Usage**:
+```python
+from omni_agent.core import run_manager, RunStatus
+
+# Register a run
+cancel_event = await run_manager.register(run_id, session_id, user_id)
+
+# Pass cancel_event to Agent
+agent = Agent(llm_client=llm, tools=tools, cancel_event=cancel_event)
+
+# Cancel from another coroutine
+await run_manager.cancel(run_id)
+
+# Cleanup after completion
+await run_manager.unregister(run_id, RunStatus.COMPLETED)
+```
+
+**Frontend Integration**:
+```javascript
+// Start streaming
+const response = await fetch('/api/v1/agent/run/stream', {...});
+const reader = response.body.getReader();
+
+// First event contains run_id
+const firstEvent = await reader.read();
+const { run_id } = JSON.parse(firstEvent.data);
+
+// Cancel button handler
+async function cancelRun() {
+    await fetch('/api/v1/agent/cancel', {
+        method: 'POST',
+        body: JSON.stringify({ run_id })
+    });
+}
+```
 
 ### RAG Knowledge Base
 
@@ -418,10 +507,10 @@ Located at `~/.omni-agent/log/agent_run_YYYYMMDD_HHMMSS.log`
 **Viewing Logs**:
 ```bash
 # List recent logs
-ls -lht ~/.omni-agent/log/ | head -5
+ls -lht ~/.omni-agents/log/ | head -5
 
 # View specific run
-cat ~/.omni-agent/log/agent_run_20251113_223233.log
+cat ~/.omni-agents/log/agent_run_20251113_223233.log
 ```
 
 ### TraceLogger (Multi-Agent Workflow Tracking)

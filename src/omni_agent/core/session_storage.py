@@ -246,7 +246,7 @@ class PostgresStorage(SessionStorage):
     ```sql
     CREATE TABLE IF NOT EXISTS agent_sessions (
         session_id VARCHAR(255) PRIMARY KEY,
-        session_type VARCHAR(50) NOT NULL DEFAULT 'agent',
+        session_type VARCHAR(50) NOT NULL DEFAULT 'agents',
         data JSONB NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -261,14 +261,14 @@ class PostgresStorage(SessionStorage):
         self,
         dsn: str,
         table_name: str = "agent_sessions",
-        session_type: str = "agent",
+        session_type: str = "agents",
     ):
         """初始化 PostgreSQL 存储.
 
         Args:
             dsn: PostgreSQL 连接字符串
             table_name: 表名
-            session_type: 会话类型（用于区分 agent/team）
+            session_type: 会话类型（用于区分 agents/team）
         """
         self.dsn = dsn
         self.table_name = table_name
@@ -296,7 +296,7 @@ class PostgresStorage(SessionStorage):
             await conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self.table_name} (
                     session_id VARCHAR(255) PRIMARY KEY,
-                    session_type VARCHAR(50) NOT NULL DEFAULT 'agent',
+                    session_type VARCHAR(50) NOT NULL DEFAULT 'agents',
                     data JSONB NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

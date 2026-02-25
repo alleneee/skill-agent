@@ -793,7 +793,7 @@ await server.connect(stdioTransport);
 const sseTransport = new SSEServerTransport("/message", response);
 await server.connect(sseTransport);
 
-// HTTP transport (for web services)
+// HTTP transport (for web agents)
 // Configure based on your HTTP framework integration
 ```
 

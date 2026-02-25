@@ -161,14 +161,14 @@ class TestSpawnAgentToolDepthLimit:
         result = await tool.execute(task="test task")
 
         assert result.success is False
-        assert "Maximum agent nesting depth" in result.error
+        assert "Maximum agents nesting depth" in result.error
         assert "(3)" in result.error
 
     @pytest.mark.asyncio
     async def test_depth_limit_allows_spawn_below_max(self):
         """Test that spawning is allowed below max depth."""
         responses = [
-            LLMResponse(content="Sub-agent completed the task.", tool_calls=None)
+            LLMResponse(content="Sub-agents completed the task.", tool_calls=None)
         ]
         mock_llm = create_mock_llm_client(responses)
 
@@ -190,7 +190,7 @@ class TestSpawnAgentToolInheritance:
     """Test tool inheritance behavior."""
 
     def test_inherit_all_tools(self):
-        """Test that sub-agent inherits all parent tools by default."""
+        """Test that sub-agents inherits all parent tools by default."""
         mock_llm = MagicMock()
         parent_tools = {
             "read_file": MockReadTool(),
@@ -285,7 +285,7 @@ class TestSpawnAgentToolInheritance:
             llm_client=mock_llm,
             parent_tools=parent_tools,
             workspace_dir="/tmp/test",
-            current_depth=2,  # At depth 2, sub-agent would be depth 3 (max)
+            current_depth=2,  # At depth 2, sub-agents would be depth 3 (max)
             max_depth=3
         )
 
@@ -352,7 +352,7 @@ class TestSpawnAgentToolExecution:
 
     @pytest.mark.asyncio
     async def test_successful_execution(self):
-        """Test successful sub-agent execution."""
+        """Test successful sub-agents execution."""
         responses = [
             LLMResponse(
                 content="I have analyzed the code and found no security issues.",
@@ -383,7 +383,7 @@ class TestSpawnAgentToolExecution:
 
     @pytest.mark.asyncio
     async def test_execution_with_tool_usage(self):
-        """Test sub-agent that uses tools."""
+        """Test sub-agents that uses tools."""
         responses = [
             LLMResponse(
                 content="",
@@ -516,8 +516,8 @@ class TestEndToEndScenario:
 
     @pytest.mark.asyncio
     async def test_agent_spawns_subagent(self):
-        """Test complete flow: Agent decides to spawn sub-agent."""
-        # Main agent decides to use spawn_agent
+        """Test complete flow: Agent decides to spawn sub-agents."""
+        # Main agents decides to use spawn_agent
         main_responses = [
             LLMResponse(
                 content="",
@@ -542,7 +542,7 @@ class TestEndToEndScenario:
             )
         ]
 
-        # Sub-agent response
+        # Sub-agents response
         sub_responses = [
             LLMResponse(
                 content="Security analysis complete. No vulnerabilities found.",
@@ -562,7 +562,7 @@ class TestEndToEndScenario:
         mock_llm = MagicMock(spec=LLMClient)
         mock_llm.generate = mock_generate
 
-        # Create main agent with spawn_agent tool
+        # Create main agents with spawn_agent tool
         parent_tools = {"read_file": MockReadTool()}
         spawn_tool = SpawnAgentTool(
             llm_client=mock_llm,
@@ -673,7 +673,7 @@ def run_quick_test():
     asyncio.run(test_factory())
 
     # Test 5: Execution
-    print("\n[Test 5] Sub-agent execution...")
+    print("\n[Test 5] Sub-agents execution...")
 
     async def test_execution():
         responses = [
@@ -690,7 +690,7 @@ def run_quick_test():
         result = await tool.execute(task="Analyze code", role="reviewer")
         assert result.success is True
         assert "Sub-Agent Execution Result" in result.content
-        print("  ✅ Sub-agent execution works")
+        print("  ✅ Sub-agents execution works")
 
     asyncio.run(test_execution())
 

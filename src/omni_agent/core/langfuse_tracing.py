@@ -2,7 +2,7 @@
 
 This module provides Langfuse-based tracing that replaces the legacy AgentLogger.
 It integrates with LiteLLM for automatic LLM call tracing and provides decorators
-for agent and tool execution tracing.
+for agents and tool execution tracing.
 
 When Langfuse is disabled, falls back to basic console logging.
 """
@@ -108,7 +108,7 @@ class ConsoleTracer:
 
     def __init__(
         self,
-        name: str = "agent",
+        name: str = "agents",
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
         metadata: Optional[dict] = None,
@@ -131,7 +131,7 @@ class ConsoleTracer:
     def start_trace(self, task: str) -> "ConsoleTracer":
         self._start_time = time.time()
         self._task = task
-        logger.info(f"[TRACE START] agent={self.name} task={task[:100]}...")
+        logger.info(f"[TRACE START] agents={self.name} task={task[:100]}...")
         return self
 
     def log_step(
@@ -208,7 +208,7 @@ class ConsoleTracer:
 
 
 def get_tracer(
-    name: str = "agent",
+    name: str = "agents",
     user_id: Optional[str] = None,
     session_id: Optional[str] = None,
     metadata: Optional[dict] = None,
@@ -246,7 +246,7 @@ class LangfuseTracer:
 
     def __init__(
         self,
-        name: str = "agent",
+        name: str = "agents",
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
         metadata: Optional[dict] = None,
@@ -268,7 +268,7 @@ class LangfuseTracer:
         return self._trace.id if self._trace else None
 
     def start_trace(self, task: str) -> "LangfuseTracer":
-        """Start a new trace for an agent run."""
+        """Start a new trace for an agents run."""
         if not _langfuse_enabled or not _langfuse_client:
             return self
 
@@ -294,7 +294,7 @@ class LangfuseTracer:
         token_count: int,
         token_limit: int,
     ) -> None:
-        """Log agent step progress."""
+        """Log agents step progress."""
         if not self._trace:
             return
 
@@ -489,10 +489,10 @@ def trace_agent(
     user_id: Optional[str] = None,
     session_id: Optional[str] = None,
 ):
-    """Decorator for tracing agent execution.
+    """Decorator for tracing agents execution.
 
     Usage:
-        @trace_agent(name="my-agent")
+        @trace_agent(name="my-agents")
         async def run(self, task: str):
             ...
     """
@@ -505,10 +505,10 @@ def trace_agent(
             agent_name = name
             if not agent_name and args:
                 self_obj = args[0]
-                agent_name = getattr(self_obj, "name", None) or "agent"
+                agent_name = getattr(self_obj, "name", None) or "agents"
 
             tracer = LangfuseTracer(
-                name=agent_name or "agent",
+                name=agent_name or "agents",
                 user_id=user_id,
                 session_id=session_id,
             )

@@ -1,9 +1,9 @@
-"""Session Note Tool - 让 agent 记录和回忆重要信息
+"""Session Note Tool - 让 agents 记录和回忆重要信息
 
-这个工具允许 agent:
+这个工具允许 agents:
 - 在会话期间记录关键点和重要信息
 - 回忆之前记录的笔记
-- 跨 agent 执行链维护上下文
+- 跨 agents 执行链维护上下文
 """
 
 import json
@@ -46,7 +46,7 @@ class SessionNoteTool(Tool):
         return (
             "记录重要信息作为会话笔记，以便将来参考。"
             "使用此工具记录关键事实、用户偏好、决策或上下文，"
-            "这些信息应在 agent 执行链中稍后回忆。每个笔记都会带有时间戳。"
+            "这些信息应在 agents 执行链中稍后回忆。每个笔记都会带有时间戳。"
         )
 
     @property
@@ -148,7 +148,7 @@ class RecallNoteTool(Tool):
         return (
             "回忆所有之前记录的会话笔记。"
             "使用此工具检索重要信息、上下文或决策，"
-            "这些信息来自会话早期或之前的 agent 执行链。"
+            "这些信息来自会话早期或之前的 agents 执行链。"
         )
 
     @property

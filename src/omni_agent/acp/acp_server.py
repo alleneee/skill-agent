@@ -2,10 +2,10 @@
 """使用官方 Agent 客户端协议 Python SDK 的 ACP 服务器。
 
 此模块使用官方 SDK 实现符合 ACP 的代理，
-允许 Zed、JetBrains、VSCode 等代码编辑器启动 omni-agent。
+允许 Zed、JetBrains、VSCode 等代码编辑器启动 omni-agents。
 
 用法：
-    omni-agent-acp [--workspace DIR]
+    omni-agents-acp [--workspace DIR]
     python -m omni_agent.acp.acp_server [--workspace DIR]
 """
 
@@ -229,7 +229,7 @@ class OmniACPAgent(Agent):
         return " ".join(parts)
 
     def _log(self, message: str):
-        print(f"[omni-agent-acp] {message}", file=sys.stderr, flush=True)
+        print(f"[omni-agents-acp] {message}", file=sys.stderr, flush=True)
 
 
 async def main():

@@ -57,14 +57,14 @@ class AgentNode:
         Args:
             name: Node name for identification
             llm_client: LLM client instance
-            system_prompt: System prompt for the agent
-            tools: List of tools available to the agent
+            system_prompt: System prompt for the agents
+            tools: List of tools available to the agents
             input_key: State key to read input from
             output_key: State key to write output to
             history_key: Optional state key to append execution history
             max_steps: Maximum execution steps
             transform_input: Custom function to transform state to input message
-            transform_output: Custom function to transform agent output to state update
+            transform_output: Custom function to transform agents output to state update
         """
         self.name = name
         self.llm_client = llm_client
@@ -78,7 +78,7 @@ class AgentNode:
         self.transform_output = transform_output
 
     async def __call__(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute agent and return state update.
+        """Execute agents and return state update.
 
         Args:
             state: Current workflow state

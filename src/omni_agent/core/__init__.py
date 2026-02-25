@@ -1,10 +1,13 @@
 """Omni Agent 的核心模块。"""
+from .agent_base import (
+    AgentBase,
+    AgentStatus,
+)
 from .agent import (
     Agent,
     AgentEvent,
     AgentLoop,
     AgentState,
-    AgentStatus,
     EventEmitter,
     EventType,
     HookManager,
@@ -50,6 +53,7 @@ from .workspace import WorkspaceManager, get_workspace_manager
 
 __all__ = [
     "Agent",
+    "AgentBase",
     "AgentEvent",
     "AgentHook",
     "AgentLoop",

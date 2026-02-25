@@ -126,7 +126,7 @@ class Settings(BaseSettings):
         description="Session storage backend: 'file', 'redis', or 'postgres'"
     )
     SESSION_STORAGE_PATH: str = Field(
-        default="~/.omni-agent/sessions.json",
+        default="~/.omni-agents/sessions.json",
         description="Path to session storage file (for file backend)"
     )
     SESSION_MAX_AGE_DAYS: int = Field(
@@ -230,7 +230,7 @@ class Settings(BaseSettings):
     # Spawn Agent settings
     ENABLE_SPAWN_AGENT: bool = Field(
         default=True,
-        description="Enable spawn_agent tool for sub-agent creation"
+        description="Enable spawn_agent tool for sub-agents creation"
     )
     SPAWN_AGENT_MAX_DEPTH: int = Field(
         default=3,
@@ -264,14 +264,14 @@ class Settings(BaseSettings):
     )
     SANDBOX_URL: str = Field(
         default="http://localhost:8080",
-        description="Sandbox server URL (agent-sandbox)"
+        description="Sandbox server URL (agents-sandbox)"
     )
     SANDBOX_AUTO_START: bool = Field(
         default=False,
         description="Auto-start sandbox Docker container if not running"
     )
     SANDBOX_DOCKER_IMAGE: str = Field(
-        default="ghcr.io/agent-infra/sandbox:latest",
+        default="ghcr.io/agents-infra/sandbox:latest",
         description="Docker image for sandbox container"
     )
     SANDBOX_TTL_SECONDS: int = Field(

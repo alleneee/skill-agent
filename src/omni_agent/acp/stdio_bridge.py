@@ -59,8 +59,8 @@ class ACPStdioBridge:
         request_id = request.get("id")
 
         endpoint_map = {
-            "agent/initialize": "/agent/initialize",
-            "initialize": "/agent/initialize",
+            "agents/initialize": "/agents/initialize",
+            "initialize": "/agents/initialize",
             "session/new": "/session/new",
             "session/prompt": "/session/prompt",
             "session/cancel": "/session/cancel",

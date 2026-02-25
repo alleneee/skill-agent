@@ -1,7 +1,7 @@
 """Omni Agent CLI - 交互式 REPL，支持流式输出。
 
 Usage:
-    omni-agent [OPTIONS]
+    omni-agents [OPTIONS]
 
 Options:
     --workspace, -w DIR     Workspace directory (default: ./workspace)
@@ -104,10 +104,10 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  omni-agent                           # Use default workspace
-  omni-agent -w /path/to/project       # Custom workspace
-  omni-agent -s my-session             # Resume session
-  omni-agent --no-mcp                  # Disable MCP tools
+  omni-agents                           # Use default workspace
+  omni-agents -w /path/to/project       # Custom workspace
+  omni-agents -s my-session             # Resume session
+  omni-agents --no-mcp                  # Disable MCP tools
         """,
     )
     parser.add_argument(
@@ -138,7 +138,7 @@ Examples:
         "--max-steps",
         type=int,
         default=None,
-        help=f"Maximum agent steps (default: {settings.AGENT_MAX_STEPS})",
+        help=f"Maximum agents steps (default: {settings.AGENT_MAX_STEPS})",
     )
     parser.add_argument(
         "--debug",
@@ -154,7 +154,7 @@ Examples:
         "--version",
         "-v",
         action="version",
-        version=f"omni-agent {VERSION}",
+        version=f"omni-agents {VERSION}",
     )
     return parser.parse_args()
 
@@ -168,14 +168,14 @@ async def run_agent_cli(
     debug: bool = False,
     show_thinking: bool = True,
 ) -> None:
-    """Run interactive CLI agent.
+    """Run interactive CLI agents.
 
     Args:
         workspace_dir: Workspace directory path
         session_id: Optional session ID to resume
         enable_mcp: Whether to enable MCP tools
         enable_skills: Whether to enable skills
-        max_steps: Maximum agent steps per run
+        max_steps: Maximum agents steps per run
         debug: Whether to show debug information
         show_thinking: Whether to show thinking process
     """
@@ -222,7 +222,7 @@ async def run_agent_cli(
     )
     system_prompt += workspace_info
 
-    # 5. Create agent
+    # 5. Create agents
     agent = Agent(
         llm_client=llm_client,
         system_prompt=system_prompt,
@@ -287,7 +287,7 @@ async def run_agent_cli(
         event.current_buffer.insert_text("\n")
 
     # History file in user home
-    history_file = Path.home() / ".omni-agent" / ".cli_history"
+    history_file = Path.home() / ".omni-agents" / ".cli_history"
     history_file.parent.mkdir(parents=True, exist_ok=True)
 
     session = PromptSession(
@@ -359,7 +359,7 @@ async def run_agent_cli(
                 print_stats(agent, session_start, session_handler.tool_calls_count)
                 break
 
-            # Run agent with streaming
+            # Run agents with streaming
             print(f"\n{Colors.BRIGHT_BLUE}Agent{Colors.RESET} {Colors.DIM}>{Colors.RESET} {Colors.DIM}Thinking...{Colors.RESET}", end="", flush=True)
             if show_thinking:
                 print(f" {Colors.DIM}(Ctrl+O to hide thinking){Colors.RESET}", end="")

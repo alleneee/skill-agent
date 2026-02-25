@@ -6,7 +6,7 @@
 协议规范: https://agentclientprotocol.com/
 
 主要端点:
-    - POST /agent/initialize: 初始化连接，协商能力
+    - POST /agents/initialize: 初始化连接，协商能力
     - POST /session/new: 创建新会话
     - POST /session/prompt: 同步处理用户提示
     - POST /session/prompt/stream: 流式处理用户提示 (SSE)
@@ -50,7 +50,7 @@ async def initialize(
 ) -> JsonRpcResponse:
     """初始化 ACP 连接并协商能力。
 
-    ACP 端点: POST /agent/initialize
+    ACP 端点: POST /agents/initialize
 
     该端点是 ACP 协议的第一步，客户端通过此端点：
     1. 建立与 Agent 服务的连接
@@ -65,7 +65,7 @@ async def initialize(
         包含 Agent 信息和能力的 JSON-RPC 响应
     """
     init_response = ACPAdapter.create_initialize_response(
-        name="omni-agent",
+        name="omni-agents",
         version=settings.VERSION,
         title=settings.PROJECT_NAME,
     )

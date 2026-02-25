@@ -41,7 +41,7 @@ class ACPAdapter:
 
     @staticmethod
     def create_initialize_response(
-        name: str = "omni-agent",
+        name: str = "omni-agents",
         version: str = "1.0.0",
         title: Optional[str] = None,
     ) -> InitializeResponse:

@@ -12,12 +12,12 @@ class TraceViewer:
         """Initialize viewer.
 
         Args:
-            trace_dir: Trace directory (defaults to ~/.omni-agent/traces/)
+            trace_dir: Trace directory (defaults to ~/.omni-agents/traces/)
         """
         if trace_dir:
             self.trace_dir = Path(trace_dir)
         else:
-            self.trace_dir = Path.home() / ".omni-agent" / "traces"
+            self.trace_dir = Path.home() / ".omni-agents" / "traces"
 
     def list_traces(self, limit: int = 10):
         """List recent traces."""

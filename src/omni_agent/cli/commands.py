@@ -34,7 +34,7 @@ def print_help() -> None:
   {Colors.BRIGHT_GREEN}/exit{Colors.RESET}      - Exit program (also: /quit, /q, exit, quit, q)
 
 {Colors.BOLD}{Colors.BRIGHT_YELLOW}Keyboard Shortcuts:{Colors.RESET}
-  {Colors.BRIGHT_CYAN}Ctrl+O{Colors.RESET}     - Toggle thinking display (during agent execution)
+  {Colors.BRIGHT_CYAN}Ctrl+O{Colors.RESET}     - Toggle thinking display (during agents execution)
   {Colors.BRIGHT_CYAN}Ctrl+U{Colors.RESET}     - Clear current input line
   {Colors.BRIGHT_CYAN}Ctrl+L{Colors.RESET}     - Clear screen
   {Colors.BRIGHT_CYAN}Ctrl+J{Colors.RESET}     - Insert newline (multi-line input)

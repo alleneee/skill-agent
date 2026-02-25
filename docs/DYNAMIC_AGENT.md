@@ -252,7 +252,7 @@ curl -X POST "http://localhost:8000/api/v1/agent/run" \
 import httpx
 
 async def create_custom_agent_task():
-    """使用动态配置创建 agent 任务"""
+    """使用动态配置创建 agents 任务"""
     async with httpx.AsyncClient() as client:
         response = await client.post(
             "http://localhost:8000/api/v1/agent/run",
@@ -447,7 +447,7 @@ def create_script_generation_config():
 curl http://localhost:8000/api/v1/tools/
 
 # 检查响应日志
-# 日志位置：~/.omni-agent/log/
+# 日志位置：~/.omni-agents/log/
 ```
 
 ## 总结

@@ -3,7 +3,7 @@ import axios from 'axios';
 
 const apiClient = axios.create({
   baseURL: '/api/v1',
-  timeout: 120000, // agent 执行超时 2 分钟
+  timeout: 120000, // agents 执行超时 2 分钟
   headers: {
     'Content-Type': 'application/json',
   },

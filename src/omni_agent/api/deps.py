@@ -33,7 +33,6 @@ if TYPE_CHECKING:
 
 from omni_agent.core import Agent, LLMClient, settings
 from omni_agent.core.config import Settings
-from omni_agent.core.session import AgentSessionManager, TeamSessionManager
 from omni_agent.core.session_manager import (
     UnifiedAgentSessionManager,
     UnifiedTeamSessionManager,

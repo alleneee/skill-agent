@@ -83,7 +83,7 @@ async def test_basic_spawn():
         default_max_steps=5,
     )
 
-    print("  Spawning sub-agent to calculate 123 + 456...")
+    print("  Spawning sub-agents to calculate 123 + 456...")
 
     result = await spawn_tool.execute(
         task="Calculate 123 + 456 using the calculate tool and tell me the result.",
@@ -138,7 +138,7 @@ async def test_agent_with_spawn_tool():
     agent = Agent(
         llm_client=llm_client,
         system_prompt="""You are a task coordinator.
-When asked to do calculations, you should spawn a sub-agent with role "calculator" to do the work.
+When asked to do calculations, you should spawn a sub-agents with role "calculator" to do the work.
 Use the spawn_agent tool with task describing what calculation to do.""",
         tools=[math_tool, spawn_tool],
         max_steps=10,
@@ -146,15 +146,15 @@ Use the spawn_agent tool with task describing what calculation to do.""",
         enable_logging=True,
     )
 
-    print("  Asking agent to coordinate a calculation task...")
-    agent.add_user_message("Please spawn a sub-agent to calculate 100 * 5 + 50")
+    print("  Asking agents to coordinate a calculation task...")
+    agent.add_user_message("Please spawn a sub-agents to calculate 100 * 5 + 50")
 
     result, logs = await agent.run()
 
     print(f"  Steps taken: {len([l for l in logs if l.get('type') == 'step'])}")
 
     spawn_calls = [l for l in logs if l.get('type') == 'tool_call' and l.get('tool') == 'spawn_agent']
-    print(f"  Spawn agent calls: {len(spawn_calls)}")
+    print(f"  Spawn agents calls: {len(spawn_calls)}")
 
     print(f"  Result preview: {result[:300]}...")
 
@@ -167,7 +167,7 @@ Use the spawn_agent tool with task describing what calculation to do.""",
 
 
 async def test_factory_integration():
-    """Test AgentFactory creates agent with spawn_agent."""
+    """Test AgentFactory creates agents with spawn_agent."""
     print("\n" + "=" * 60)
     print("Test: AgentFactory Integration")
     print("=" * 60)
@@ -205,7 +205,7 @@ async def test_factory_integration():
         print("  ✅ AgentFactory correctly configured spawn_agent!")
         return True
     else:
-        print("  ❌ spawn_agent not found in agent tools")
+        print("  ❌ spawn_agent not found in agents tools")
         return False
 
 

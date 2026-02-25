@@ -19,7 +19,7 @@ async def root() -> dict[str, str | dict[str, str]]:
         "status": "running",
         "endpoints": {
             "health": "/health",
-            "agent": "/api/v1/agent/run",
+            "agents": "/api/v1/agents/run",
             "tools": "/api/v1/tools",
             "docs": "/docs",
         },

@@ -177,7 +177,7 @@ llm:
 
 ```bash
 # 确保从项目根目录运行
-cd skill-agent
+cd skill-agents
 python -m omni_agent.main
 ```
 

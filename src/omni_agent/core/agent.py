@@ -6,6 +6,7 @@
 - 执行循环（AgentLoop）
 - Hook 扩展机制（HookManager + AgentHook）
 - Checkpoint 断点续传
+- 运行时取消机制
 
 核心类:
     - Agent: 用户接口，封装所有配置和执行逻辑
@@ -17,8 +18,9 @@
     1. Agent.run() 调用 AgentLoop.run()
     2. AgentLoop 循环执行 _execute_step()
     3. 每步: LLM 生成 -> 解析工具调用 -> 执行工具 -> 添加结果到消息
-    4. 直到: 无工具调用（完成）/ max_steps / 等待用户输入 / 错误
+    4. 直到: 无工具调用（完成）/ max_steps / 等待用户输入 / 错误 / 取消
 """
+import asyncio
 import json
 import time
 from dataclasses import dataclass, field
@@ -40,11 +42,12 @@ from omni_agent.tools.user_input_tool import GetUserInputTool, is_user_input_too
 from omni_agent.core.ralph import RalphConfig, RalphLoop
 from omni_agent.core.hooks import AgentHook, HookContext
 from omni_agent.core.memory_hook import MemoryHook, create_memory_hook
+from omni_agent.core.agent_base import AgentBase, AgentStatus
 
 
 class EventType(Enum):
     """Agent 事件类型.
-    
+
     定义 Agent 执行过程中可能触发的所有事件类型，
     用于事件驱动的执行流程和日志记录。
     """
@@ -56,6 +59,7 @@ class EventType(Enum):
     TOOL_END = "tool_end"
     USER_INPUT_REQUIRED = "user_input_required"
     COMPLETION = "completion"
+    CANCELLED = "cancelled"
     ERROR = "error"
     TOKEN_SUMMARY = "token_summary"
     RALPH_ITERATION_START = "ralph_iteration_start"
@@ -115,22 +119,6 @@ class EventEmitter:
         self._global_handlers.clear()
 
 
-class AgentStatus(Enum):
-    """Agent 运行状态.
-    
-    IDLE: 空闲，尚未开始
-    RUNNING: 执行中
-    WAITING_INPUT: 等待用户输入
-    COMPLETED: 已完成
-    ERROR: 发生错误
-    """
-    IDLE = "idle"
-    RUNNING = "running"
-    WAITING_INPUT = "waiting_input"
-    COMPLETED = "completed"
-    ERROR = "error"
-
-
 @dataclass
 class AgentState:
     """Agent 运行时状态.
@@ -187,6 +175,10 @@ class AgentState:
         self.status = AgentStatus.ERROR
         self.error_message = message
 
+    def mark_cancelled(self, message: str = "Task cancelled by user") -> None:
+        self.status = AgentStatus.CANCELLED
+        self.error_message = message
+
     def resume_from_input(self) -> None:
         if self.status == AgentStatus.WAITING_INPUT:
             self.status = AgentStatus.RUNNING
@@ -213,6 +205,10 @@ class AgentState:
     @property
     def is_error(self) -> bool:
         return self.status == AgentStatus.ERROR
+
+    @property
+    def is_cancelled(self) -> bool:
+        return self.status == AgentStatus.CANCELLED
 
     @property
     def can_continue(self) -> bool:
@@ -292,25 +288,29 @@ class LoopConfig:
         parallel_tools: 是否并行执行工具
         checkpoint: 断点续传配置
         on_tool_result: 工具执行后的回调 (tool_call_id, tool_name, arguments, content)
+        cancel_event: 取消事件，设置后将中止执行
     """
     max_steps: int = 50
     parallel_tools: bool = False
     checkpoint: Optional[CheckpointConfig] = None
     on_tool_result: Optional[ToolResultCallback] = None
+    cancel_event: Optional[asyncio.Event] = None
 
 
 @dataclass
 class StepResult:
     """单步执行结果.
-    
+
     Attributes:
         completed: 任务是否完成
         waiting_input: 是否等待用户输入
+        cancelled: 是否被取消
         content: 响应内容
         error: 错误信息（如有）
     """
     completed: bool = False
     waiting_input: bool = False
+    cancelled: bool = False
     content: str = ""
     error: Optional[str] = None
 
@@ -405,6 +405,52 @@ class AgentLoop:
     def hooks(self) -> HookManager:
         return self._hooks
 
+    def _is_cancelled(self) -> bool:
+        """检查是否已被取消。"""
+        if self._config.cancel_event is None:
+            return False
+        return self._config.cancel_event.is_set()
+
+    def _cleanup_incomplete_messages(self, state: AgentState) -> int:
+        """清理不完整的消息，保证消息一致性。
+
+        取消时可能存在不完整的 assistant 消息（有 tool_calls 但没有对应的 tool 结果），
+        此方法会移除这些不完整的消息。
+
+        Returns:
+            移除的消息数量
+        """
+        if not state.messages:
+            return 0
+
+        last_assistant_idx = -1
+        for i in range(len(state.messages) - 1, -1, -1):
+            if state.messages[i].role == "assistant":
+                last_assistant_idx = i
+                break
+
+        if last_assistant_idx == -1:
+            return 0
+
+        last_msg = state.messages[last_assistant_idx]
+        if last_msg.tool_calls:
+            expected_tool_results = {tc.id for tc in last_msg.tool_calls}
+            actual_tool_results = set()
+            for msg in state.messages[last_assistant_idx + 1:]:
+                if msg.role == "tool" and msg.tool_call_id:
+                    actual_tool_results.add(msg.tool_call_id)
+
+            if expected_tool_results != actual_tool_results:
+                removed_count = len(state.messages) - last_assistant_idx
+                state.messages = state.messages[:last_assistant_idx]
+                return removed_count
+
+        return 0
+
+    def set_cancel_event(self, event: asyncio.Event) -> None:
+        """设置取消事件。"""
+        self._config.cancel_event = event
+
     async def run(self, state: AgentState, metadata: Optional[dict[str, Any]] = None) -> str:
         state.reset_for_run()
         state.max_steps = self._config.max_steps
@@ -413,10 +459,34 @@ class AgentLoop:
         await self._hooks.trigger_before_run(ctx)
 
         while state.current_step < self._config.max_steps:
+            if self._is_cancelled():
+                self._cleanup_incomplete_messages(state)
+                cancel_msg = "Task cancelled by user"
+                state.mark_cancelled(cancel_msg)
+                await self._events.emit(AgentEvent(
+                    type=EventType.CANCELLED,
+                    step=state.current_step,
+                    data={"message": cancel_msg},
+                ))
+                await self._hooks.trigger_after_run(ctx, cancel_msg, False)
+                return cancel_msg
+
             state.increment_step()
             ctx.step = state.current_step
 
             result = await self._execute_step(state, metadata)
+
+            if result.cancelled:
+                self._cleanup_incomplete_messages(state)
+                cancel_msg = "Task cancelled by user"
+                state.mark_cancelled(cancel_msg)
+                await self._events.emit(AgentEvent(
+                    type=EventType.CANCELLED,
+                    step=state.current_step,
+                    data={"message": cancel_msg},
+                ))
+                await self._hooks.trigger_after_run(ctx, cancel_msg, False)
+                return cancel_msg
 
             step_data = {"completed": result.completed, "content": result.content, "error": result.error}
             await self._hooks.trigger_on_step(ctx, step_data)
@@ -472,11 +542,25 @@ class AgentLoop:
         await self._hooks.trigger_before_run(ctx)
 
         while state.current_step < self._config.max_steps:
+            if self._is_cancelled():
+                self._cleanup_incomplete_messages(state)
+                cancel_msg = "Task cancelled by user"
+                state.mark_cancelled(cancel_msg)
+                await self._hooks.trigger_after_run(ctx, cancel_msg, False)
+                yield {"type": "cancelled", "data": {"message": cancel_msg}}
+                return
+
             state.increment_step()
             ctx.step = state.current_step
 
             async for event in self._execute_step_stream(state, metadata):
                 yield event
+
+                if event["type"] == "cancelled":
+                    self._cleanup_incomplete_messages(state)
+                    state.mark_cancelled(event["data"].get("message", "Task cancelled"))
+                    await self._hooks.trigger_after_run(ctx, event["data"].get("message", ""), False)
+                    return
 
                 if event["type"] == "done":
                     state.mark_completed()
@@ -590,6 +674,9 @@ class AgentLoop:
 
                 return StepResult(waiting_input=True)
 
+        if self._is_cancelled():
+            return StepResult(cancelled=True)
+
         tool_calls_data = [
             (tc.id, tc.function.name, tc.function.arguments)
             for tc in response.tool_calls
@@ -605,6 +692,8 @@ class AgentLoop:
         results = await self._tool_executor.execute_batch(tool_calls_data)
 
         for exec_result in results:
+            if self._is_cancelled():
+                return StepResult(cancelled=True)
             await self._events.emit(AgentEvent(
                 type=EventType.TOOL_END,
                 step=state.current_step,
@@ -764,6 +853,10 @@ class AgentLoop:
 
                 return
 
+        if self._is_cancelled():
+            yield {"type": "cancelled", "data": {"message": "Task cancelled by user"}}
+            return
+
         tool_calls_data = [
             (tc.id, tc.function.name, tc.function.arguments)
             for tc in tool_calls_buffer
@@ -771,6 +864,10 @@ class AgentLoop:
         results = await self._tool_executor.execute_batch(tool_calls_data)
 
         for exec_result in results:
+            if self._is_cancelled():
+                yield {"type": "cancelled", "data": {"message": "Task cancelled by user"}}
+                return
+
             yield {
                 "type": "tool_result",
                 "data": {
@@ -909,10 +1006,10 @@ class AgentLoop:
         return state, stream_generator()
 
 
-class Agent:
-    """AI Agent 用户接口.
+class Agent(AgentBase):
+    """AI Agent 实现
 
-    封装所有配置和执行逻辑，提供简洁的 API:
+    继承自 AgentBase，实现完整的 Agent 功能：
     - run()/run_stream(): 标准执行模式
     - ralph 参数: 启用 Ralph 迭代模式
     - hooks: 扩展执行流程
@@ -924,54 +1021,110 @@ class Agent:
         - 用户输入等待和恢复
         - Langfuse 追踪集成
         - Ralph 迭代开发模式
+
+    创建示例:
+        # 方式1: 直接指定模型（推荐）
+        agent = Agent(
+            model="openai/gpt-4o",
+            api_key="sk-xxx",
+            tools=[ReadTool(), WriteTool()],
+            mcp_config="mcp.json",
+            skills_dir="./skills",
+        )
+
+        # 方式2: 传入 LLMClient（向后兼容）
+        agent = Agent(
+            llm_client=my_llm_client,
+            tools=[ReadTool()],
+        )
     """
+
+    _mcp_tools: list[Tool] = []
+    _mcp_initialized: bool = False
+
     def __init__(
         self,
-        llm_client: LLMClient,
+        # 模型配置（二选一）
+        llm_client: Optional[LLMClient] = None,
+        model: str = "openai/gpt-4o",
+        api_key: Optional[str] = None,
+        api_base: Optional[str] = None,
+        # 工具配置
+        tools: list[Tool] | None = None,
+        mcp_config: Optional[str] = None,
+        skills_dir: Optional[str] = None,
+        # 系统提示
         system_prompt: Optional[str] = None,
         prompt_config: Optional[SystemPromptConfig] = None,
-        tools: list[Tool] | None = None,
+        # 运行配置
+        name: str | None = None,
         max_steps: int = 50,
         workspace_dir: str = "./workspace",
         token_limit: int = 120000,
         enable_summarization: bool = True,
+        tool_output_limit: int = 10000,
+        parallel_tools: bool = False,
+        # 可选功能
         enable_logging: bool = True,
         log_dir: str | None = None,
-        name: str | None = None,
-        skill_loader: Optional[SkillLoader] = None,
-        tool_output_limit: int = 10000,
-        user_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        parallel_tools: bool = False,
-        ralph: bool | RalphConfig = False,
         enable_memory: bool = False,
         memory_base_dir: str = "./.agent_memories",
+        ralph: bool | RalphConfig = False,
+        # 会话标识
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        # 运行时控制
+        cancel_event: Optional[asyncio.Event] = None,
+        # 向后兼容（已弃用）
+        skill_loader: Optional[SkillLoader] = None,
     ) -> None:
-        self.llm = llm_client
-        self.name = name or "agent"
-        self.tools = {tool.name: tool for tool in (tools or [])}
-        self.max_steps = max_steps
+        import os
+
+        super().__init__(name=name, max_steps=max_steps)
+
         self.workspace_dir = Path(workspace_dir)
-        self.skill_loader = skill_loader
         self.tool_output_limit = tool_output_limit
         self.user_id = user_id
         self.session_id = session_id
         self.enable_logging = enable_logging
         self.enable_memory = enable_memory
+        self._mcp_config = mcp_config
+        self._skills_dir = skills_dir
 
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
 
+        # 创建或使用传入的 LLMClient
+        if llm_client is not None:
+            self.llm = llm_client
+        else:
+            resolved_api_key = api_key or os.getenv("LLM_API_KEY", "")
+            if not resolved_api_key:
+                raise ValueError(
+                    "API key required. Pass api_key parameter or set LLM_API_KEY env var"
+                )
+            self.llm = LLMClient(
+                api_key=resolved_api_key,
+                api_base=api_base,
+                model=model,
+            )
+
+        # 构建工具列表
+        self.tools: dict[str, Tool] = {}
+        self.skill_loader: Optional[SkillLoader] = skill_loader
+        self._init_tools(tools or [])
+
+        # 记忆 Hook
         self._memory_hook: Optional[MemoryHook] = None
         if enable_memory and user_id and session_id:
             self._memory_hook = create_memory_hook(
-                user_id, session_id, memory_base_dir, llm_client
+                user_id, session_id, memory_base_dir, self.llm
             )
 
         self._state = AgentState(max_steps=max_steps)
         self._events = EventEmitter()
 
         self.token_manager = TokenManager(
-            llm_client=llm_client,
+            llm_client=self.llm,
             token_limit=token_limit,
             enable_summarization=enable_summarization,
         )
@@ -995,10 +1148,11 @@ class Agent:
             max_steps=max_steps,
             parallel_tools=parallel_tools,
             on_tool_result=self._handle_ralph_tool_result if self._ralph_loop else None,
+            cancel_event=cancel_event,
         )
 
         self._loop = AgentLoop(
-            llm_client=llm_client,
+            llm_client=self.llm,
             tool_executor=self._tool_executor,
             token_manager=self.token_manager,
             event_emitter=self._events,
@@ -1012,25 +1166,86 @@ class Agent:
         self.tracer: Optional[LangfuseTracer] = None
         self.execution_logs: list[dict[str, Any]] = []
 
-        if prompt_config:
-            self.system_prompt = self._build_structured_prompt(prompt_config)
-        elif system_prompt:
-            if "Current Workspace" not in system_prompt and "workspace_info" not in system_prompt:
-                workspace_info = (
-                    f"\n\n## Current Workspace\n"
-                    f"You are currently working in: `{self.workspace_dir.absolute()}`\n"
-                    f"All relative paths will be resolved relative to this directory."
-                )
-                system_prompt = system_prompt + workspace_info
-            self.system_prompt = system_prompt
-        else:
-            self.system_prompt = self._build_default_prompt()
+        # 构建系统提示
+        self.system_prompt = self._build_system_prompt(system_prompt, prompt_config)
+        self._state.messages = [Message(role="system", content=self.system_prompt)]
 
+    def _init_tools(self, tools: list[Tool]) -> None:
+        """初始化工具列表（包括传入的工具、MCP工具、Skills）"""
+        from omni_agent.skills.skill_tool import GetSkillTool
+
+        # 添加传入的工具
+        for tool in tools:
+            self.tools[tool.name] = tool
+
+        # 加载 Skills
+        if self._skills_dir and Path(self._skills_dir).exists():
+            self.skill_loader = SkillLoader(self._skills_dir)
+            self.skill_loader.discover_skills()
+            if self.skill_loader.loaded_skills:
+                self.tools["get_skill"] = GetSkillTool(self.skill_loader)
+
+    async def _load_mcp_tools(self) -> None:
+        """异步加载 MCP 工具（首次调用 run 时执行）"""
+        if self._mcp_initialized or not self._mcp_config:
+            return
+
+        if not Path(self._mcp_config).exists():
+            self._mcp_initialized = True
+            return
+
+        try:
+            from omni_agent.tools.mcp_loader import load_mcp_tools_async
+
+            mcp_tools = await load_mcp_tools_async(self._mcp_config)
+            if mcp_tools:
+                for tool in mcp_tools:
+                    self.tools[tool.name] = tool
+                self._tool_executor = ToolExecutor(
+                    tools=self.tools,
+                    output_limit=self.tool_output_limit,
+                    parallel_execution=self._loop._config.parallel_tools,
+                )
+                self._loop.set_tools(self.tools)
+        except Exception:
+            pass
+        finally:
+            self._mcp_initialized = True
+
+    def _build_system_prompt(
+        self,
+        system_prompt: Optional[str],
+        prompt_config: Optional[SystemPromptConfig],
+    ) -> str:
+        """构建系统提示"""
+        if prompt_config:
+            result = self._build_structured_prompt(prompt_config)
+        elif system_prompt:
+            result = system_prompt
+        else:
+            result = self._build_default_prompt()
+
+        # 注入工作目录信息
+        if "Current Workspace" not in result and "workspace_info" not in result:
+            workspace_info = (
+                f"\n\n## Current Workspace\n"
+                f"You are currently working in: `{self.workspace_dir.absolute()}`\n"
+                f"All relative paths will be resolved relative to this directory."
+            )
+            result = result + workspace_info
+
+        # 注入 Skills 元数据
+        if self.skill_loader and self.skill_loader.loaded_skills:
+            skills_metadata = self.skill_loader.get_skills_metadata_prompt()
+            if skills_metadata:
+                result = f"{result}\n\n{skills_metadata}"
+
+        # 注入记忆上下文
         if self._memory_hook:
             memory_context = self._memory_hook.get_context_for_prompt()
-            self.system_prompt = f"{self.system_prompt}\n\n{memory_context}"
+            result = f"{result}\n\n{memory_context}"
 
-        self._state.messages = [Message(role="system", content=self.system_prompt)]
+        return result
 
     @property
     def messages(self) -> list[Message]:
@@ -1215,6 +1430,9 @@ class Agent:
         self.tracer.start_trace(task)
 
     async def run(self, task: Optional[str] = None) -> tuple[str, list[dict[str, Any]]]:
+        # 首次运行时加载 MCP 工具
+        await self._load_mcp_tools()
+
         if self._ralph_loop:
             if task:
                 return await self._run_ralph_internal(task)
@@ -1229,6 +1447,9 @@ class Agent:
         return result, self.execution_logs
 
     async def run_stream(self, task: Optional[str] = None) -> AsyncIterator[dict[str, Any]]:
+        # 首次运行时加载 MCP 工具
+        await self._load_mcp_tools()
+
         if self._ralph_loop:
             if not task:
                 task = self._get_last_user_message()
@@ -1598,3 +1819,61 @@ When you have completed the task, use the `signal_completion` tool or output:
     def reset_ralph(self) -> None:
         if self._ralph_loop:
             self._ralph_loop.reset()
+
+    def observe(self, msg: "Message") -> None:
+        """接收外部消息并注入到 Agent 的消息历史中。
+
+        由 MsgHub 的广播处理器调用，将其他参与者的发言
+        或系统公告注入到当前 Agent 的对话上下文中，使其
+        在下一轮发言时能看到这些消息。
+
+        Args:
+            msg: 要注入的消息对象
+        """
+        self._state.messages.append(msg)
+
+    async def execute_turn(self, max_steps: int = 10) -> tuple[str, list[dict]]:
+        """执行一个讨论轮次（供 MsgHub 调用）。
+
+        与 run() 不同，execute_turn() 专为 MsgHub 多 Agent 场景设计：
+        1. 保存外部事件处理器（如 MsgHub 的广播 handler）
+        2. 调用 _setup_execution_logging() 重置日志收集器
+        3. 恢复外部事件处理器（因为 _setup_execution_logging 会 clear 所有 handler）
+        4. 临时修改 max_steps 限制单轮执行步数
+        5. 执行 AgentLoop.run() 完成一轮对话
+
+        这种 save-restore 机制确保 MsgHub 的 COMPLETION 事件广播
+        不会被 _setup_execution_logging 的 clear() 操作破坏。
+
+        Args:
+            max_steps: 本轮最大执行步数，默认 10
+
+        Returns:
+            (response, execution_logs) 元组
+        """
+        # 保存当前所有外部注册的事件处理器
+        saved_handlers: dict[EventType, list[EventHandler]] = {}
+        for etype, handlers in self._events._handlers.items():
+            saved_handlers[etype] = list(handlers)
+        saved_global = list(self._events._global_handlers)
+
+        # _setup_execution_logging 会 clear() 所有 handler 后重新注册日志收集器
+        self._setup_execution_logging()
+
+        # 恢复之前保存的外部 handler（如 MsgHub 的广播处理器）
+        for etype, handlers in saved_handlers.items():
+            for h in handlers:
+                if h not in self._events._handlers.get(etype, []):
+                    self._events.on(etype, h)
+        for h in saved_global:
+            if h not in self._events._global_handlers:
+                self._events.on_all(h)
+
+        # 临时限制步数，执行完后恢复
+        original_max_steps = self._loop._config.max_steps
+        self._loop._config.max_steps = max_steps
+        try:
+            result = await self._loop.run(self._state, self._get_llm_metadata())
+        finally:
+            self._loop._config.max_steps = original_max_steps
+        return result, self.execution_logs

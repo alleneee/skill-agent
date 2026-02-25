@@ -3,10 +3,10 @@
 This module provides an interactive command-line interface for Omni Agent.
 
 Usage:
-    omni-agent [OPTIONS]
+    omni-agents [OPTIONS]
 
 Example:
-    omni-agent --workspace /path/to/project
+    omni-agents --workspace /path/to/project
 """
 from omni_agent.cli.commands import AVAILABLE_COMMANDS
 from omni_agent.cli.display import Colors

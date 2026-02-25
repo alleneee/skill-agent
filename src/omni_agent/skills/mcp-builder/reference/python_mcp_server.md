@@ -652,7 +652,7 @@ FastMCP supports different transport mechanisms:
 if __name__ == "__main__":
     mcp.run()
 
-# HTTP transport (for web services)
+# HTTP transport (for web agents)
 if __name__ == "__main__":
     mcp.run(transport="streamable_http", port=8000)
 

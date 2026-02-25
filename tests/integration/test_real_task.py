@@ -76,7 +76,7 @@ async def run_real_task():
         default_token_limit=50000,
     )
 
-    # Create main agent
+    # Create main agents
     agent = Agent(
         llm_client=llm_client,
         system_prompt=SYSTEM_PROMPT,

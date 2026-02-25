@@ -11,7 +11,7 @@ from omni_agent.core.run_log_storage import get_run_log_storage
 
 router = APIRouter()
 
-TRACE_DIR = Path.home() / ".omni-agent" / "traces"
+TRACE_DIR = Path.home() / ".omni-agents" / "traces"
 
 
 class TraceListItem(BaseModel):

@@ -63,7 +63,7 @@ def create_skill_tools(
     """
     创建 Progressive Disclosure 的 skill 工具
 
-    仅提供 get_skill 工具 - agent 使用系统提示中的元数据
+    仅提供 get_skill 工具 - agents 使用系统提示中的元数据
     了解有哪些 skills 可用，然后按需加载它们
 
     Args:

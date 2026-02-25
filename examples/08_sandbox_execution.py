@@ -1,15 +1,15 @@
 """
 Sandbox 隔离执行示例
 
-展示如何使用 agent-sandbox 进行代码隔离执行。
+展示如何使用 agents-sandbox 进行代码隔离执行。
 每个 session 拥有独立的沙箱环境，互不影响。
 
 前置条件:
     1. 启动 sandbox Docker 容器:
-       docker run -d --security-opt seccomp=unconfined -p 8080:8080 ghcr.io/agent-infra/sandbox:latest
+       docker run -d --security-opt seccomp=unconfined -p 8080:8080 ghcr.io/agents-infra/sandbox:latest
 
-    2. 安装 agent-sandbox:
-       uv add agent-sandbox
+    2. 安装 agents-sandbox:
+       uv add agents-sandbox
 
 运行方式:
     uv run python examples/08_sandbox_execution.py
@@ -130,7 +130,7 @@ async def main():
     except Exception as e:
         print(f"Basic usage failed: {e}")
         print("Ensure sandbox container is running:")
-        print("  docker run -d --security-opt seccomp=unconfined -p 8080:8080 ghcr.io/agent-infra/sandbox:latest")
+        print("  docker run -d --security-opt seccomp=unconfined -p 8080:8080 ghcr.io/agents-infra/sandbox:latest")
         return
 
     try:

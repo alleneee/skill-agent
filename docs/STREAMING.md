@@ -46,7 +46,7 @@ data: {"type": "event_type", "data": {...}}
 {
   "type": "log_file",
   "data": {
-    "log_file": "/home/user/.omni-agent/log/agent_run_20251114_114221.log"
+    "log_file": "/home/user/.omni-agents/log/agent_run_20251114_114221.log"
   }
 }
 ```

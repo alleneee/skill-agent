@@ -265,7 +265,7 @@ Use the previous interactions to maintain continuity and context.
                     "spawn_agent" in member_config.tools and
                     self.current_depth < self.spawn_agent_max_depth):
 
-                    # Create parent tools dict for spawn agent (member's other tools)
+                    # Create parent tools dict for spawn agents (member's other tools)
                     parent_tools = {t.name: t for t in member_tools}
 
                     spawn_tool = SpawnAgentTool(
@@ -287,7 +287,7 @@ Use the previous interactions to maintain continuity and context.
 Focus on your area of expertise and provide clear, actionable responses.
 """
 
-            # Create agent for this member
+            # Create agents for this member
             member_agent = Agent(
                 llm_client=self.llm_client,
                 tools=member_tools,
@@ -387,6 +387,7 @@ Focus on your area of expertise and provide clear, actionable responses.
         user_id: Optional[str] = None,
         num_history_runs: int = 3,
         run_context: Optional[RunContext] = None,
+        cancel_event: Optional[asyncio.Event] = None,
     ) -> TeamRunResponse:
         """执行团队任务（标准模式）.
 
@@ -400,6 +401,7 @@ Focus on your area of expertise and provide clear, actionable responses.
             user_id: 用户 ID，用于追踪
             num_history_runs: 注入上下文的历史运行记录数（默认 3）
             run_context: 内部参数，框架自动创建，用户无需手动传入
+            cancel_event: 取消事件，设置后将中止执行
 
         Returns:
             TeamRunResponse 包含执行结果、成员运行记录、token 统计等
@@ -442,7 +444,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                 )
                 history_context = session.get_history_context(num_runs=num_history_runs)
 
-            # Create leader agent with history context
+            # Create leader agents with history context
             system_prompt = self._build_leader_system_prompt(history_context=history_context)
 
             # Create delegation tool dynamically (closure captures run_context)
@@ -529,7 +531,8 @@ Focus on your area of expertise and provide clear, actionable responses.
                 system_prompt=system_prompt,
                 workspace_dir=self.workspace_dir,
                 max_steps=max_steps,
-                enable_logging=True
+                enable_logging=True,
+                cancel_event=cancel_event,
             )
 
             # Add task message and run the leader

@@ -1,7 +1,7 @@
 // Local storage utilities for session management
 
-const SESSIONS_KEY = 'fastapi-agent-sessions';
-const CURRENT_SESSION_KEY = 'fastapi-agent-current-session';
+const SESSIONS_KEY = 'fastapi-agents-sessions';
+const CURRENT_SESSION_KEY = 'fastapi-agents-current-session';
 
 export interface StorageSession {
   id: string;

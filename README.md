@@ -14,6 +14,7 @@
 - **完整执行循环**: Agent 自动执行多步任务直到完成
 
 ### 高级功能
+- **多模态消息**: 支持 Image/Audio/Video 内容块，自动转换为 OpenAI API 格式
 - **Token 管理**: 使用 tiktoken 精确计算 token，防止上下文溢出
 - **自动消息总结**: 超过 token 限制时自动压缩历史消息
 - **AgentLogger 日志系统**: 结构化 JSON 日志，完整追踪执行过程
@@ -29,6 +30,7 @@
 ### 多 Agent 协作
 - **SpawnAgentTool**: 动态创建子 Agent 执行委派任务（类似 Claude Code Task 工具）
 - **Team 系统**: Leader-Member 多 Agent 协作，支持智能任务委派
+- **MsgHub**: 事件驱动的多 Agent 通信，自动消息广播，支持动态参与者管理
 - **Graph 执行引擎**: LangGraph 风格的声明式工作流定义，支持并行执行、条件路由、状态 Reducer
 - **RAG 知识库**: 混合检索（语义+关键词），基于 PostgreSQL + pgvector
 - **Sandbox 沙箱隔离**: 基于 agent-sandbox，每个 Session 独立沙箱，安全执行不受信任代码
@@ -108,7 +110,8 @@ skill-agent/
 │       ├── utils/              # 工具类
 │       │   └── trace_viewer.py # 追踪日志查看器
 │       └── schemas/            # Pydantic 数据模型
-│           ├── message.py      # Agent 请求/响应
+│           ├── message.py      # Agent 请求/响应（含多模态支持）
+│           ├── content_block.py # 多模态内容块类型
 │           └── team.py         # Team 请求/响应
 ├── frontend/                   # React Web 前端 (Vite + TailwindCSS)
 ├── tests/                      # 测试套件
@@ -173,7 +176,7 @@ SCENE_ROUTING_USE_LLM=false  # 使用 LLM 进行场景分类（更精确但更�
 
 # Sandbox 沙箱隔离（可选）
 ENABLE_SANDBOX=false         # 启用沙箱隔离执行
-SANDBOX_URL=http://localhost:8080  # agent-sandbox 服务地址
+SANDBOX_URL=http://localhost:8080  # agents-sandbox 服务地址
 SANDBOX_AUTO_START=false     # 自动启动 Docker 容器
 SANDBOX_TTL_SECONDS=3600     # 沙箱实例存活时间
 
@@ -435,7 +438,7 @@ ACP 端点实现 [Zed Agent Client Protocol](https://agentclientprotocol.com/)�
 {
   "jsonrpc": "2.0",
   "id": 0,
-  "method": "agent/initialize",
+  "method": "agents/initialize",
   "params": {
     "protocolVersion": "1.0",
     "clientInfo": {"name": "MyEditor", "version": "1.0.0"}
@@ -453,7 +456,7 @@ ACP 端点实现 [Zed Agent Client Protocol](https://agentclientprotocol.com/)�
       "promptCapabilities": {"image": false, "embeddedContext": true},
       "mcp": {"http": true, "sse": true}
     },
-    "agentInfo": {"name": "omni-agent", "version": "0.1.0"}
+    "agentInfo": {"name": "omni-agents", "version": "0.1.0"}
   }
 }
 ```
@@ -600,6 +603,38 @@ Team 系统采用 Leader-Member 模式进行任务协作：
 | `reviewer` | 质量审查与反馈 | `read` |
 | `analyst` | 数据分析与洞察 | 所有工具 |
 
+### MsgHub 事件驱动多 Agent 通信
+
+MsgHub 借鉴 AgentScope 的 subscriber 机制，通过事件驱动实现 Agent 间自动消息广播：
+
+```python
+from omni_agent.core import Agent, MsgHub, MsgHubConfig
+
+designer = Agent(llm_client=llm, name="designer", system_prompt="UI designer")
+developer = Agent(llm_client=llm, name="developer", system_prompt="Developer")
+reviewer = Agent(llm_client=llm, name="reviewer", system_prompt="Code reviewer")
+
+config = MsgHubConfig(
+    max_rounds=6,
+    max_steps_per_turn=5,
+    announcement="Design review session.",
+)
+
+async with MsgHub([designer, developer, reviewer], config=config) as hub:
+    result = await hub.run("Design a REST API for user auth")
+    hub.add(new_agent)
+    hub.delete("reviewer")
+    result2 = await hub.run("Refine the design based on feedback")
+```
+
+核心机制：
+
+- Agent 完成发言后触发 COMPLETION 事件
+- MsgHub 事件处理器捕获并自动广播给其他参与者
+- 通过 `Agent.observe(msg)` 注入消息到目标 Agent 历史
+- 支持自定义 Orchestrator 控制发言顺序（默认 round-robin）
+- Agent 返回 `<hub_complete>` 标签结束讨论
+
 ### Ralph 迭代模式
 
 Ralph Loop 是一种迭代开发方法论，通过重复执行相同的 prompt，让 AI 看到自己之前的工作并逐步改进，直到任务完成。
@@ -665,7 +700,7 @@ tools = await toolkit.get_tools("session-123")
 启动沙箱容器：
 
 ```bash
-docker run -d --security-opt seccomp=unconfined -p 8080:8080 ghcr.io/agent-infra/sandbox:latest
+docker run -d --security-opt seccomp=unconfined -p 8080:8080 ghcr.io/agents-infra/sandbox:latest
 ```
 
 沙箱工具集：
@@ -843,7 +878,7 @@ uv run python examples/acp/streaming_example.py --backend claude
 
 ```bash
 # 直接运行 ACP 服务
-omni-agent-acp --workspace /path/to/project
+omni-agents-acp --workspace /path/to/project
 
 # 或通过模块运行
 uv run python -m omni_agent.acp.acp_server --workspace /path/to/project
@@ -856,8 +891,8 @@ uv run python -m omni_agent.acp.acp_server --workspace /path/to/project
   "assistant": {
     "custom_agents": [
       {
-        "name": "omni-agent",
-        "command": "omni-agent-acp",
+        "name": "omni-agents",
+        "command": "omni-agents-acp",
         "args": ["--workspace", "${workspace}"]
       }
     ]
@@ -894,6 +929,51 @@ uv run python -m omni_agent.acp.acp_server --workspace /path/to/project
 | `bash` | `execute` |
 | `web_search` | `fetch` |
 | `search_knowledge` | `search` |
+
+### 多模态消息支持
+
+支持在消息中包含图片、音频、视频等多模态内容：
+
+```python
+from omni_agent.schemas import (
+    Message, TextBlock, ImageBlock, AudioBlock,
+    Base64Source, URLSource
+)
+from omni_agent.core import file_to_base64
+
+# 方式1: 使用 URL
+msg = Message(
+    role="user",
+    content=[
+        TextBlock(text="分析这张图片:"),
+        ImageBlock(source=URLSource(url="https://example.com/image.png")),
+    ]
+)
+
+# 方式2: 使用 Base64 (本地文件)
+data, mime = file_to_base64("./screenshot.png")
+msg = Message(
+    role="user",
+    content=[
+        TextBlock(text="这个截图有什么问题?"),
+        ImageBlock(source=Base64Source(media_type=mime, data=data)),
+    ]
+)
+
+# Message helper 方法
+text = msg.get_text_content()           # 提取纯文本
+images = msg.get_content_blocks(ImageBlock)  # 获取所有图片块
+has_audio = msg.has_content_blocks(AudioBlock)  # 检查是否包含音频
+```
+
+支持的内容块类型：
+
+| 类型 | 描述 | OpenAI 格式 |
+|------|------|-------------|
+| `TextBlock` | 文本内容 | `{type: "text", text: "..."}` |
+| `ImageBlock` | 图片 (URL/Base64) | `{type: "image_url", image_url: {url: "..."}}` |
+| `AudioBlock` | 音频 (仅 Base64) | `{type: "input_audio", input_audio: {...}}` |
+| `VideoBlock` | 视频 (URL/Base64) | `{type: "video_url", video_url: {...}}` |
 
 ### Token 管理
 
@@ -1061,8 +1141,8 @@ CMD ["uv", "run", "uvicorn", "omni_agent.main:app", "--host", "0.0.0.0", "--port
 ```
 
 ```bash
-docker build -t omni-agent .
-docker run -p 8000:8000 --env-file .env omni-agent
+docker build -t omni-agents .
+docker run -p 8000:8000 --env-file .env omni-agents
 ```
 
 ### systemd
@@ -1087,7 +1167,7 @@ WantedBy=multi-user.target
 ```
 
 ```bash
-sudo systemctl enable omni-agent && sudo systemctl start omni-agent
+sudo systemctl enable omni-agents && sudo systemctl start omni-agents
 ```
 
 ## 可观测性与追踪
@@ -1132,8 +1212,8 @@ Langfuse 提供：
 Agent 执行日志保存在 `~/.omni-agent/log/`：
 
 ```bash
-ls -lht ~/.omni-agent/log/ | head -5
-cat ~/.omni-agent/log/agent_run_20251113_223233.log
+ls -lht ~/.omni-agents/log/ | head -5
+cat ~/.omni-agents/log/agent_run_20251113_223233.log
 ```
 
 #### TraceLogger（多 Agent 追踪）

@@ -1,13 +1,11 @@
-"""
-Session Manager 单元测试
+"""Session Manager 单元测试
 
 测试内容:
 1. AgentSession / TeamSession 数据类
-2. AgentSessionManager / TeamSessionManager 内存管理
-3. UnifiedAgentSessionManager / UnifiedTeamSessionManager 统一接口
-4. FileStorage 文件存储后端
-5. 会话持久化和恢复
-6. 会话清理和裁剪
+2. UnifiedAgentSessionManager / UnifiedTeamSessionManager 统一接口
+3. FileStorage 文件存储后端
+4. 会话持久化和恢复
+5. 会话清理和裁剪
 """
 
 import asyncio
@@ -23,10 +21,8 @@ import pytest
 from omni_agent.core.session import (
     AgentRunRecord,
     AgentSession,
-    AgentSessionManager,
     RunRecord,
     TeamSession,
-    TeamSessionManager,
 )
 from omni_agent.core.session_manager import (
     UnifiedAgentSessionManager,
@@ -98,7 +94,7 @@ class TestAgentSession:
         """测试创建会话."""
         session = AgentSession(
             session_id="test-session",
-            agent_name="test-agent",
+            agent_name="test-agents",
             user_id="user-1",
             runs=[],
             state={},
@@ -107,7 +103,7 @@ class TestAgentSession:
         )
 
         assert session.session_id == "test-session"
-        assert session.agent_name == "test-agent"
+        assert session.agent_name == "test-agents"
         assert session.user_id == "user-1"
         assert len(session.runs) == 0
 
@@ -115,7 +111,7 @@ class TestAgentSession:
         """测试添加运行记录."""
         session = AgentSession(
             session_id="test-session",
-            agent_name="test-agent",
+            agent_name="test-agents",
             user_id=None,
             runs=[],
             state={},
@@ -135,7 +131,7 @@ class TestAgentSession:
         """测试获取历史消息."""
         session = AgentSession(
             session_id="test-session",
-            agent_name="test-agent",
+            agent_name="test-agents",
             user_id=None,
             runs=[],
             state={},
@@ -168,7 +164,7 @@ class TestAgentSession:
         """测试获取历史上下文."""
         session = AgentSession(
             session_id="test-session",
-            agent_name="test-agent",
+            agent_name="test-agents",
             user_id=None,
             runs=[],
             state={},
@@ -198,7 +194,7 @@ class TestAgentSession:
         """测试获取运行次数."""
         session = AgentSession(
             session_id="test-session",
-            agent_name="test-agent",
+            agent_name="test-agents",
             user_id=None,
             runs=[],
             state={},
@@ -379,139 +375,6 @@ class TestTeamSession:
 
 
 # ============================================================================
-# AgentSessionManager Tests
-# ============================================================================
-
-
-class TestAgentSessionManager:
-    """AgentSessionManager 测试."""
-
-    def test_get_or_create_session(self):
-        """测试获取或创建会话."""
-        manager = AgentSessionManager()
-
-        session = manager.get_session("test-session", "test-agent", "user-1")
-        assert session.session_id == "test-session"
-        assert session.agent_name == "test-agent"
-
-        # 再次获取应该返回同一个会话
-        session2 = manager.get_session("test-session", "other-agent")
-        assert session2 is session
-
-    def test_add_run(self, agent_run_record):
-        """测试添加运行记录."""
-        manager = AgentSessionManager()
-        manager.get_session("test-session", "test-agent")
-
-        manager.add_run("test-session", agent_run_record)
-
-        session = manager.get_session("test-session", "test-agent")
-        assert len(session.runs) == 1
-
-    def test_delete_session(self):
-        """测试删除会话."""
-        manager = AgentSessionManager()
-        manager.get_session("test-session", "test-agent")
-
-        assert manager.delete_session("test-session") is True
-        assert manager.delete_session("test-session") is False  # 已删除
-
-    def test_persistence(self, temp_storage_path, agent_run_record):
-        """测试持久化."""
-        # 创建并保存
-        manager1 = AgentSessionManager(storage_path=temp_storage_path)
-        manager1.get_session("persist-test", "test-agent")
-        manager1.add_run("persist-test", agent_run_record)
-
-        # 重新加载
-        manager2 = AgentSessionManager(storage_path=temp_storage_path)
-        assert "persist-test" in manager2.sessions
-        assert len(manager2.sessions["persist-test"].runs) == 1
-
-    def test_cleanup_old_sessions(self):
-        """测试清理过期会话."""
-        manager = AgentSessionManager()
-
-        # 创建一个 "旧" 会话
-        session = manager.get_session("old-session", "test-agent")
-        session.updated_at = time.time() - (8 * 86400)  # 8 天前
-
-        # 创建一个新会话
-        manager.get_session("new-session", "test-agent")
-
-        cleaned = manager.cleanup_old_sessions(max_age_days=7)
-        assert cleaned == 1
-        assert "old-session" not in manager.sessions
-        assert "new-session" in manager.sessions
-
-    def test_trim_session_runs(self, agent_run_record):
-        """测试裁剪会话运行记录."""
-        manager = AgentSessionManager()
-        manager.get_session("test-session", "test-agent")
-
-        # 添加 10 条记录
-        for i in range(10):
-            run = AgentRunRecord(
-                run_id=str(uuid.uuid4()),
-                task=f"Task {i}",
-                response=f"Response {i}",
-                success=True,
-                steps=1,
-                timestamp=time.time(),
-                metadata={},
-            )
-            manager.add_run("test-session", run)
-
-        # 裁剪到 5 条
-        removed = manager.trim_session_runs("test-session", max_runs=5)
-        assert removed == 5
-        assert len(manager.sessions["test-session"].runs) == 5
-        # 应该保留最新的 5 条
-        assert manager.sessions["test-session"].runs[0].task == "Task 5"
-
-    def test_get_stats(self, agent_run_record):
-        """测试获取统计信息."""
-        manager = AgentSessionManager()
-        manager.get_session("session-1", "agent-1")
-        manager.get_session("session-2", "agent-2")
-        manager.add_run("session-1", agent_run_record)
-
-        stats = manager.get_stats()
-        assert stats["total_sessions"] == 2
-        assert stats["total_runs"] == 1
-
-
-# ============================================================================
-# TeamSessionManager Tests
-# ============================================================================
-
-
-class TestTeamSessionManager:
-    """TeamSessionManager 测试."""
-
-    def test_get_or_create_session(self):
-        """测试获取或创建会话."""
-        manager = TeamSessionManager()
-
-        session = manager.get_session("test-session", "Test Team", "user-1")
-        assert session.session_id == "test-session"
-        assert session.team_name == "Test Team"
-
-    def test_persistence(self, temp_storage_path, team_run_record):
-        """测试持久化."""
-        # 创建并保存
-        manager1 = TeamSessionManager(storage_path=temp_storage_path)
-        manager1.get_session("persist-test", "Test Team")
-        manager1.add_run("persist-test", team_run_record)
-
-        # 重新加载
-        manager2 = TeamSessionManager(storage_path=temp_storage_path)
-        assert "persist-test" in manager2.sessions
-        assert len(manager2.sessions["persist-test"].runs) == 1
-        assert manager2.sessions["persist-test"].runs[0].runner_type == "team_leader"
-
-
-# ============================================================================
 # FileStorage Tests
 # ============================================================================
 
@@ -592,7 +455,7 @@ class TestUnifiedAgentSessionManager:
         )
 
         try:
-            session = await manager.get_session("test-session", "test-agent")
+            session = await manager.get_session("test-session", "test-agents")
             assert session.session_id == "test-session"
 
             run = AgentRunRecord(
@@ -607,7 +470,7 @@ class TestUnifiedAgentSessionManager:
             await manager.add_run("test-session", run)
 
             # 验证持久化
-            session = await manager.get_session("test-session", "test-agent")
+            session = await manager.get_session("test-session", "test-agents")
             assert len(session.runs) == 1
         finally:
             await manager.close()
@@ -622,7 +485,7 @@ class TestUnifiedAgentSessionManager:
 
         try:
             # 创建会话并添加运行记录以确保它被保存到存储
-            session = await manager.get_session("test-session", "test-agent")
+            session = await manager.get_session("test-session", "test-agents")
             run = AgentRunRecord(
                 run_id=str(uuid.uuid4()),
                 task="Test task",
@@ -651,7 +514,7 @@ class TestUnifiedAgentSessionManager:
 
         try:
             # 创建会话并手动设置为过期
-            session = await manager.get_session("old-session", "test-agent")
+            session = await manager.get_session("old-session", "test-agents")
             session.updated_at = time.time() - (8 * 86400)
             # 保存更新
             await manager._storage.save_session(
@@ -771,7 +634,7 @@ class TestSessionIntegration:
             storage_path=temp_storage_path
         )
         try:
-            await manager1.get_session(session_id, "test-agent")
+            await manager1.get_session(session_id, "test-agents")
             run = AgentRunRecord(
                 run_id=str(uuid.uuid4()),
                 task="Initial task",
@@ -791,7 +654,7 @@ class TestSessionIntegration:
             storage_path=temp_storage_path
         )
         try:
-            session = await manager2.get_session(session_id, "test-agent")
+            session = await manager2.get_session(session_id, "test-agents")
             assert len(session.runs) == 1
             assert session.runs[0].task == "Initial task"
 
@@ -815,7 +678,7 @@ class TestSessionIntegration:
             storage_path=temp_storage_path
         )
         try:
-            session = await manager3.get_session(session_id, "test-agent")
+            session = await manager3.get_session(session_id, "test-agents")
             assert len(session.runs) == 2
         finally:
             await manager3.close()
@@ -1035,11 +898,11 @@ class TestExtendedIntegration:
             await manager.add_run(session_id, run)
 
             session = await manager.get_session(session_id, "assistant")
-            context = session.get_history_context(num_runs=1, truncate_response=True)
+            context = session.get_history_context(num_runs=1, max_chars=500)
 
-            # 验证响应被截断
+            # 验证超出 max_chars 限制时被截断
             assert "[truncated]" in context
-            assert len(context) < len(long_response)
+            assert len(context) <= 550  # max_chars + 一些余量
         finally:
             await manager.close()
 

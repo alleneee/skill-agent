@@ -10,7 +10,7 @@
     - CheckpointConfig: 检查点配置
 
 存储位置:
-    默认存储在 ~/.omni-agent/checkpoints/<thread_id>/ckpt_*.json
+    默认存储在 ~/.omni-agents/checkpoints/<thread_id>/ckpt_*.json
 
 使用场景:
     - 长时间运行的任务断点续传

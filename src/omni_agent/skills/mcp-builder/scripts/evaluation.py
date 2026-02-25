@@ -89,7 +89,7 @@ async def agent_loop(
     tools: list[dict[str, Any]],
     connection: Any,
 ) -> tuple[str, dict[str, Any]]:
-    """Run the agent loop with MCP tools."""
+    """Run the agents loop with MCP tools."""
     messages = [{"role": "user", "content": question}]
 
     response = await asyncio.to_thread(

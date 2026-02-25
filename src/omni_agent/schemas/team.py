@@ -42,7 +42,7 @@ class TeamRunRequest(BaseModel):
     team_config: Optional[TeamConfig] = Field(None, description="Team configuration (if creating new team)")
     team_id: Optional[str] = Field(None, description="Existing team ID to use")
     workspace_dir: Optional[str] = Field("./workspace", description="Workspace directory")
-    max_steps: int = Field(50, description="Max steps per agent")
+    max_steps: int = Field(50, description="Max steps per agents")
     stream: bool = Field(False, description="Whether to stream responses")
 
 

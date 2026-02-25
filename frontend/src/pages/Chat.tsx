@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Send, Loader2, Trash2, Plus, Bot, User, Database, Bug, ChevronDown, ChevronRight } from 'lucide-react';
+import { Send, Square, Trash2, Plus, Bot, User, Database, Bug, ChevronDown, ChevronRight } from 'lucide-react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useAgentStream } from '@/hooks/useAgentStream';
@@ -88,6 +88,7 @@ export default function Chat() {
   const { streamingMessage } = useChatStore();
   const {
     sendMessage,
+    cancelStream,
     isStreaming,
     currentStep,
     maxSteps,
@@ -329,12 +330,16 @@ export default function Chat() {
                 disabled={isStreaming}
               />
               <button
-                onClick={() => handleSubmit()}
-                disabled={!input.trim() || isStreaming}
-                className="absolute right-3 bottom-3 p-2 rounded-lg bg-[var(--accent-green)] text-white disabled:bg-gray-200 disabled:text-gray-400 transition-colors hover:opacity-90"
+                onClick={() => isStreaming ? cancelStream() : handleSubmit()}
+                disabled={!isStreaming && !input.trim()}
+                className={`absolute right-3 bottom-3 p-2 rounded-lg transition-colors hover:opacity-90 ${
+                  isStreaming
+                    ? 'bg-red-500 text-white hover:bg-red-600'
+                    : 'bg-[var(--accent-green)] text-white disabled:bg-gray-200 disabled:text-gray-400'
+                }`}
               >
                 {isStreaming ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Square className="w-4 h-4" />
                 ) : (
                   <Send className="w-4 h-4" />
                 )}

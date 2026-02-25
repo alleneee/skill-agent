@@ -99,7 +99,7 @@ class UnifiedAgentSessionManager:
             self._storage = PostgresStorage(
                 dsn=postgres_dsn,
                 table_name=postgres_table,
-                session_type="agent",
+                session_type="agents",
             )
         else:
             raise ValueError(f"Unknown backend: {backend}")

@@ -1,4 +1,4 @@
-// 用于流式传输 agent 输出的 SSE 客户端
+// 用于流式传输 agents 输出的 SSE 客户端
 import type { AgentRequest, StreamEvent } from '@/types/agent';
 
 export class SSEClient {

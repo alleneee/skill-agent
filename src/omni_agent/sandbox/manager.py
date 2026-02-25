@@ -62,7 +62,7 @@ class SandboxManager:
         self,
         base_url: str = "http://localhost:8080",
         auto_start_docker: bool = False,
-        docker_image: str = "ghcr.io/agent-infra/sandbox:latest",
+        docker_image: str = "ghcr.io/agents-infra/sandbox:latest",
         ttl_seconds: int = 3600,
         max_sandboxes: int = 100,
     ) -> None:
@@ -151,7 +151,7 @@ class SandboxManager:
             from agent_sandbox import Sandbox
         except ImportError:
             raise RuntimeError(
-                "agent-sandbox not installed. Run: uv add agent-sandbox"
+                "agents-sandbox not installed. Run: uv add agents-sandbox"
             )
 
         client = Sandbox(base_url=self._base_url)
