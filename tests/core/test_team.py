@@ -76,7 +76,7 @@ def test_build_leader_system_prompt(llm_client, sample_team_config, available_to
     assert "Research Team" in prompt
     assert "Researcher" in prompt
     assert "Writer" in prompt
-    assert "delegate_task_to_member" in prompt
+    assert "member_id" in prompt
     assert "Information gathering specialist" in prompt
     assert "Documentation specialist" in prompt
 
@@ -99,24 +99,28 @@ def test_build_leader_system_prompt_delegate_all(llm_client, available_tools):
     prompt = team._build_leader_system_prompt()
 
     assert "delegate_task_to_all_members" in prompt
-    assert "ALL team members" in prompt.lower()
+    assert "all team members" in prompt.lower()
     assert "Focus on innovative solutions" in prompt
 
 
-def test_run_member_success(llm_client, sample_team_config, available_tools):
+@pytest.mark.asyncio
+async def test_run_member_success(llm_client, sample_team_config, available_tools):
     """Test running a team member successfully."""
     team = Team(config=sample_team_config, llm_client=llm_client, available_tools=available_tools)
 
-    # Mock agents run
-    mock_response = {"success": True, "message": "Research completed", "steps": 3}
-
     with patch("omni_agent.core.team.Agent") as MockAgent:
         mock_agent_instance = Mock()
-        mock_agent_instance.run.return_value = mock_response
+        mock_agent_instance.run = AsyncMock(
+            return_value=(
+                "Research completed",
+                [{"type": "step"}, {"type": "step"}, {"type": "step"}],
+            )
+        )
+        mock_agent_instance.add_user_message = Mock()
         MockAgent.return_value = mock_agent_instance
 
         member_config = sample_team_config.members[0]
-        result = team._run_member(member_config, "Find information about Python")
+        result = await team._run_member(member_config, "Find information about Python")
 
         assert result.success is True
         assert result.member_name == "Researcher"
@@ -125,22 +129,22 @@ def test_run_member_success(llm_client, sample_team_config, available_tools):
         assert len(team.member_runs) == 1
 
 
-def test_run_member_with_tools(llm_client, sample_team_config, available_tools):
+@pytest.mark.asyncio
+async def test_run_member_with_tools(llm_client, sample_team_config, available_tools):
     """Test running a team member with specific tools."""
     team = Team(config=sample_team_config, llm_client=llm_client, available_tools=available_tools)
 
-    mock_response = {"success": True, "message": "File written", "steps": 2}
-
     with patch("omni_agent.core.team.Agent") as MockAgent:
         mock_agent_instance = Mock()
-        mock_agent_instance.run.return_value = mock_response
+        mock_agent_instance.run = AsyncMock(
+            return_value=("File written", [{"type": "step"}, {"type": "step"}])
+        )
+        mock_agent_instance.add_user_message = Mock()
         MockAgent.return_value = mock_agent_instance
 
-        # Writer has write_file tool
         member_config = sample_team_config.members[1]
-        result = team._run_member(member_config, "Write documentation")
+        result = await team._run_member(member_config, "Write documentation")
 
-        # Check that agents was created with write_file tool
         call_args = MockAgent.call_args
         call_args[1]["tools"]
 
@@ -148,7 +152,8 @@ def test_run_member_with_tools(llm_client, sample_team_config, available_tools):
         assert result.member_name == "Writer"
 
 
-def test_run_member_error(llm_client, sample_team_config, available_tools):
+@pytest.mark.asyncio
+async def test_run_member_error(llm_client, sample_team_config, available_tools):
     """Test handling member run error."""
     team = Team(config=sample_team_config, llm_client=llm_client, available_tools=available_tools)
 
@@ -156,36 +161,33 @@ def test_run_member_error(llm_client, sample_team_config, available_tools):
         MockAgent.side_effect = Exception("Agent failed")
 
         member_config = sample_team_config.members[0]
-        result = team._run_member(member_config, "Some task")
+        result = await team._run_member(member_config, "Some task")
 
         assert result.success is False
         assert result.error == "Agent failed"
         assert len(team.member_runs) == 1
 
 
-def test_team_run_integration(llm_client, sample_team_config, available_tools):
+@pytest.mark.asyncio
+async def test_team_run_integration(llm_client, sample_team_config, available_tools):
     """Test full team run integration."""
     team = Team(config=sample_team_config, llm_client=llm_client, available_tools=available_tools)
 
-    # Mock leader agents run
-    mock_leader_response = {
-        "success": True,
-        "message": "Task completed by delegating to team members",
-        "steps": 5,
-    }
-
     with patch("omni_agent.core.team.Agent") as MockAgent:
         mock_agent_instance = Mock()
-        mock_agent_instance.run.return_value = mock_leader_response
+        mock_agent_instance.run = AsyncMock(
+            return_value=("Task completed by delegating to team members", [{"type": "step"}] * 5)
+        )
+        mock_agent_instance.add_user_message = Mock()
         MockAgent.return_value = mock_agent_instance
 
-        response = team.run("Research Python and create documentation")
+        response = await team.run("Research Python and create documentation")
 
         assert response.success is True
         assert response.team_name == "Research Team"
         assert response.message == "Task completed by delegating to team members"
-        assert "leader_response" in response.metadata
-        assert "team_config" in response.metadata
+        assert "run_id" in response.metadata
+        assert "session_id" in response.metadata
 
 
 def test_resolve_dependencies_simple_chain(llm_client, sample_team_config, available_tools):

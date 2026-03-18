@@ -130,16 +130,14 @@ async def test_tool_schemas():
     session_tool = SessionNoteTool()
     recall_tool = RecallNoteTool()
 
-    # Check SessionNoteTool schema
     session_schema = session_tool.to_schema()
-    assert session_schema["function"]["name"] == "record_note"
-    assert "content" in session_schema["function"]["parameters"]["properties"]
-    assert "category" in session_schema["function"]["parameters"]["properties"]
+    assert session_schema["name"] == "record_note"
+    assert "content" in session_schema["input_schema"]["properties"]
+    assert "category" in session_schema["input_schema"]["properties"]
 
-    # Check RecallNoteTool schema
     recall_schema = recall_tool.to_schema()
-    assert recall_schema["function"]["name"] == "recall_notes"
-    assert "category" in recall_schema["function"]["parameters"]["properties"]
+    assert recall_schema["name"] == "recall_notes"
+    assert "category" in recall_schema["input_schema"]["properties"]
 
 
 @pytest.mark.asyncio
