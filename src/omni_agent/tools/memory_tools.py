@@ -73,6 +73,7 @@ class DeepRecallMemoryTool(Tool):
         if self._embedding_service is None:
             try:
                 from omni_agent.rag.embedding_service import embedding_service
+
                 self._embedding_service = embedding_service
             except Exception:
                 pass
@@ -82,6 +83,7 @@ class DeepRecallMemoryTool(Tool):
         if self._vector_store is None:
             try:
                 from omni_agent.core.memory_vector import MemoryVectorStore
+
                 self._vector_store = MemoryVectorStore(self._user_id, self._session_id)
             except Exception:
                 pass
@@ -106,18 +108,14 @@ class DeepRecallMemoryTool(Tool):
 
             semantic_results: list[dict] = []
             if mode in ("semantic", "hybrid"):
-                semantic_results = await self._semantic_search(
-                    query, memory_type, limit
-                )
+                semantic_results = await self._semantic_search(query, memory_type, limit)
 
             if mode == "semantic":
                 results = semantic_results
             elif mode == "keyword":
                 results = keyword_results
             else:
-                results = self._merge_results(
-                    semantic_results, keyword_results, limit
-                )
+                results = self._merge_results(semantic_results, keyword_results, limit)
 
             if not results:
                 return ToolResult(
@@ -131,9 +129,7 @@ class DeepRecallMemoryTool(Tool):
                 sim_str = f" (相似度: {sim:.2f})" if sim is not None else ""
                 mem_type_str = mem.get("type", "unknown")
                 content = mem.get("content", "")
-                lines.append(
-                    f"{i}. [{mem_type_str}]{sim_str}\n   {content}"
-                )
+                lines.append(f"{i}. [{mem_type_str}]{sim_str}\n   {content}")
 
             return ToolResult(
                 success=True,
@@ -146,9 +142,7 @@ class DeepRecallMemoryTool(Tool):
                 error=f"深度检索记忆失败: {e}",
             )
 
-    def _keyword_search(
-        self, query: str, memory_type: str, limit: int
-    ) -> list[dict]:
+    def _keyword_search(self, query: str, memory_type: str, limit: int) -> list[dict]:
         sources: dict[str, str] = {}
         if not memory_type or memory_type == "profile":
             sources["profile"] = self._memory.read_profile()
@@ -167,11 +161,16 @@ class DeepRecallMemoryTool(Tool):
             for para in paragraphs:
                 if query_lower in para.lower():
                     score = 1.0 if query_lower in para.lower().split("\n")[0] else 0.8
-                    scored.append((score, {
-                        "type": src_type,
-                        "content": para.strip(),
-                        "similarity": score,
-                    }))
+                    scored.append(
+                        (
+                            score,
+                            {
+                                "type": src_type,
+                                "content": para.strip(),
+                                "similarity": score,
+                            },
+                        )
+                    )
 
         scored.sort(key=lambda x: x[0], reverse=True)
         return [item[1] for item in scored[:limit]]
@@ -199,9 +198,7 @@ class DeepRecallMemoryTool(Tool):
 
         return paragraphs
 
-    async def _semantic_search(
-        self, query: str, memory_type: str, limit: int
-    ) -> list[dict]:
+    async def _semantic_search(self, query: str, memory_type: str, limit: int) -> list[dict]:
         embedding_service = self._get_embedding_service()
         vector_store = self._get_vector_store()
 

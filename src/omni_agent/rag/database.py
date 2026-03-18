@@ -1,4 +1,5 @@
 """RAG 知识库的数据库管理器，使用 PostgreSQL + pgvector。"""
+
 import json
 import uuid
 from typing import Any

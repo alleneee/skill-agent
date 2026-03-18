@@ -7,10 +7,10 @@ generated frames, with automatic optimization for Slack's requirements.
 """
 
 from pathlib import Path
-from typing import Optional
+
 import imageio.v3 as imageio
-from PIL import Image
 import numpy as np
+from PIL import Image
 
 
 class GIFBuilder:
@@ -38,7 +38,7 @@ class GIFBuilder:
             frame: Frame as numpy array or PIL Image (will be converted to RGB)
         """
         if isinstance(frame, Image.Image):
-            frame = np.array(frame.convert('RGB'))
+            frame = np.array(frame.convert("RGB"))
 
         # Ensure frame is correct size
         if frame.shape[:2] != (self.height, self.width):
@@ -53,7 +53,9 @@ class GIFBuilder:
         for frame in frames:
             self.add_frame(frame)
 
-    def optimize_colors(self, num_colors: int = 128, use_global_palette: bool = True) -> list[np.ndarray]:
+    def optimize_colors(
+        self, num_colors: int = 128, use_global_palette: bool = True
+    ) -> list[np.ndarray]:
         """
         Reduce colors in all frames using quantization.
 
@@ -91,7 +93,7 @@ class GIFBuilder:
 
             # Reshape to proper RGB image format (H, W, 3)
             img_array = all_pixels[:pixels_needed].reshape(height, width, 3).astype(np.uint8)
-            combined_img = Image.fromarray(img_array, mode='RGB')
+            combined_img = Image.fromarray(img_array, mode="RGB")
 
             # Generate global palette
             global_palette = combined_img.quantize(colors=num_colors, method=2)
@@ -100,13 +102,13 @@ class GIFBuilder:
             for frame in self.frames:
                 pil_frame = Image.fromarray(frame)
                 quantized = pil_frame.quantize(palette=global_palette, dither=1)
-                optimized.append(np.array(quantized.convert('RGB')))
+                optimized.append(np.array(quantized.convert("RGB")))
         else:
             # Use per-frame quantization
             for frame in self.frames:
                 pil_frame = Image.fromarray(frame)
                 quantized = pil_frame.quantize(colors=num_colors, method=2, dither=1)
-                optimized.append(np.array(quantized.convert('RGB')))
+                optimized.append(np.array(quantized.convert("RGB")))
 
         return optimized
 
@@ -145,8 +147,13 @@ class GIFBuilder:
         self.frames = deduplicated
         return removed_count
 
-    def save(self, output_path: str | Path, num_colors: int = 128,
-             optimize_for_emoji: bool = False, remove_duplicates: bool = True) -> dict:
+    def save(
+        self,
+        output_path: str | Path,
+        num_colors: int = 128,
+        optimize_for_emoji: bool = False,
+        remove_duplicates: bool = True,
+    ) -> dict:
         """
         Save frames as optimized GIF for Slack.
 
@@ -163,7 +170,7 @@ class GIFBuilder:
             raise ValueError("No frames to save. Add frames with add_frame() first.")
 
         output_path = Path(output_path)
-        original_frame_count = len(self.frames)
+        len(self.frames)
 
         # Remove duplicate frames to reduce file size
         if remove_duplicates:
@@ -204,7 +211,7 @@ class GIFBuilder:
             output_path,
             optimized_frames,
             duration=frame_duration,
-            loop=0  # Infinite loop
+            loop=0,  # Infinite loop
         )
 
         # Get file info
@@ -212,18 +219,18 @@ class GIFBuilder:
         file_size_mb = file_size_kb / 1024
 
         info = {
-            'path': str(output_path),
-            'size_kb': file_size_kb,
-            'size_mb': file_size_mb,
-            'dimensions': f'{self.width}x{self.height}',
-            'frame_count': len(optimized_frames),
-            'fps': self.fps,
-            'duration_seconds': len(optimized_frames) / self.fps,
-            'colors': num_colors
+            "path": str(output_path),
+            "size_kb": file_size_kb,
+            "size_mb": file_size_mb,
+            "dimensions": f"{self.width}x{self.height}",
+            "frame_count": len(optimized_frames),
+            "fps": self.fps,
+            "duration_seconds": len(optimized_frames) / self.fps,
+            "colors": num_colors,
         }
 
         # Print info
-        print(f"\n✓ GIF created successfully!")
+        print("\n✓ GIF created successfully!")
         print(f"  Path: {output_path}")
         print(f"  Size: {file_size_kb:.1f} KB ({file_size_mb:.2f} MB)")
         print(f"  Dimensions: {self.width}x{self.height}")

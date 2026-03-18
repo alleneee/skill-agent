@@ -1,8 +1,9 @@
 """基于沙箱的工具，用于隔离执行。"""
-from typing import Any, Optional
 
-from omni_agent.tools.base import Tool, ToolResult
+from typing import Any
+
 from omni_agent.sandbox.manager import SandboxInstance
+from omni_agent.tools.base import Tool, ToolResult
 
 
 class SandboxShellTool(Tool):

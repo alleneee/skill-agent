@@ -14,10 +14,10 @@ import os
 
 from omni_agent.acp import (
     MessageEvent,
+    PermissionRequestEvent,
     ThoughtEvent,
     ToolCallEvent,
     ToolProgressEvent,
-    PermissionRequestEvent,
     stream_prompt,
 )
 

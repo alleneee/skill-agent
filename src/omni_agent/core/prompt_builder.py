@@ -33,7 +33,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict
 
 from omni_agent.skills.skill_loader import SkillLoader
 
@@ -43,21 +42,21 @@ class SystemPromptConfig:
     """系统提示配置."""
 
     # ========== 基础信息 ==========
-    name: Optional[str] = None
+    name: str | None = None
     """Agent 名称"""
 
-    description: Optional[str] = None
+    description: str | None = None
     """Agent 描述 - 添加到提示开头"""
 
-    role: Optional[str] = None
+    role: str | None = None
     """Agent 角色定义 - 用 <your_role> 标签包裹"""
 
     # ========== 指令 ==========
-    instructions: List[str] = field(default_factory=list)
+    instructions: list[str] = field(default_factory=list)
     """指令列表 - 用 <instructions> 标签包裹"""
 
     # ========== 输出规范 ==========
-    expected_output: Optional[str] = None
+    expected_output: str | None = None
     """期望输出格式 - 用 <expected_output> 标签包裹"""
 
     markdown: bool = False
@@ -74,14 +73,14 @@ class SystemPromptConfig:
     """时区标识符 (例如 'UTC', 'Asia/Shanghai')"""
 
     # ========== 额外信息 ==========
-    additional_context: Optional[str] = None
+    additional_context: str | None = None
     """额外上下文 - 添加到提示末尾"""
 
-    additional_information: List[str] = field(default_factory=list)
+    additional_information: list[str] = field(default_factory=list)
     """额外信息列表 - 用 <additional_information> 标签包裹"""
 
     # ========== 动态内容 ==========
-    custom_sections: Dict[str, str] = field(default_factory=dict)
+    custom_sections: dict[str, str] = field(default_factory=dict)
     """自定义章节 {标签名: 内容}"""
 
 
@@ -93,14 +92,14 @@ class SystemPromptBuilder:
     """
 
     def __init__(self):
-        self.sections: List[str] = []
+        self.sections: list[str] = []
 
     def build(
         self,
         config: SystemPromptConfig,
-        workspace_dir: Optional[Path] = None,
-        skill_loader: Optional[SkillLoader] = None,
-        tool_instructions: Optional[List[str]] = None,
+        workspace_dir: Path | None = None,
+        skill_loader: SkillLoader | None = None,
+        tool_instructions: list[str] | None = None,
     ) -> str:
         """构建系统提示.
 
@@ -150,9 +149,7 @@ class SystemPromptBuilder:
             self.sections.append(self._build_datetime_section(config.timezone))
 
         if config.additional_information:
-            self.sections.append(
-                self._build_additional_info_section(config.additional_information)
-            )
+            self.sections.append(self._build_additional_info_section(config.additional_information))
 
         for tag_name, content in config.custom_sections.items():
             self.sections.append(f"<{tag_name}>\n{content}\n</{tag_name}>")
@@ -166,7 +163,7 @@ class SystemPromptBuilder:
         """构建角色章节."""
         return f"<your_role>\n{role}\n</your_role>"
 
-    def _build_instructions_section(self, instructions: List[str]) -> str:
+    def _build_instructions_section(self, instructions: list[str]) -> str:
         """构建指令章节."""
         content = "<instructions>"
         if len(instructions) == 1:
@@ -189,7 +186,7 @@ class SystemPromptBuilder:
             "</output_format>"
         )
 
-    def _build_tool_instructions_section(self, tool_instructions: List[str]) -> str:
+    def _build_tool_instructions_section(self, tool_instructions: list[str]) -> str:
         """构建工具使用说明章节."""
         content = "<tool_usage_guidelines>"
         for instruction in tool_instructions:
@@ -225,7 +222,7 @@ class SystemPromptBuilder:
 
         return f"<current_datetime>\n{time_str}\n</current_datetime>"
 
-    def _build_additional_info_section(self, additional_info: List[str]) -> str:
+    def _build_additional_info_section(self, additional_info: list[str]) -> str:
         """构建额外信息章节."""
         content = "<additional_information>"
         for info in additional_info:
@@ -236,9 +233,9 @@ class SystemPromptBuilder:
 
 def build_system_prompt(
     config: SystemPromptConfig,
-    workspace_dir: Optional[Path] = None,
-    skill_loader: Optional[SkillLoader] = None,
-    tool_instructions: Optional[List[str]] = None,
+    workspace_dir: Path | None = None,
+    skill_loader: SkillLoader | None = None,
+    tool_instructions: list[str] | None = None,
 ) -> str:
     """便捷函数:构建系统提示.
 

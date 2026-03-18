@@ -1,5 +1,6 @@
 """SpawnAgentTool - 允许 Agent 动态创建子 Agent 进行任务委派。"""
-from typing import Any, Dict, List, Optional
+
+from typing import Any, Optional
 
 from omni_agent.tools.base import Tool, ToolResult
 
@@ -16,7 +17,7 @@ class SpawnAgentTool(Tool):
     def __init__(
         self,
         llm_client: "LLMClient",
-        parent_tools: Dict[str, Tool],
+        parent_tools: dict[str, Tool],
         workspace_dir: str,
         current_depth: int = 0,
         max_depth: int = 3,
@@ -51,7 +52,7 @@ class SpawnAgentTool(Tool):
 
     @property
     def description(self) -> str:
-        return """Spawn a specialized sub-agents to handle a specific task autonomously.
+        return f"""Spawn a specialized sub-agents to handle a specific task autonomously.
 
 Use this when:
 - A task requires specialized expertise or a different approach
@@ -62,10 +63,7 @@ Use this when:
 The sub-agents will execute the task and return its final result to you.
 You remain in control and can use the result to continue your work.
 
-Current depth: {depth}/{max_depth}""".format(
-            depth=self._current_depth,
-            max_depth=self._max_depth
-        )
+Current depth: {self._current_depth}/{self._max_depth}"""
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -74,29 +72,29 @@ Current depth: {depth}/{max_depth}""".format(
             "properties": {
                 "task": {
                     "type": "string",
-                    "description": "Clear, specific description of what the sub-agents should accomplish"
+                    "description": "Clear, specific description of what the sub-agents should accomplish",
                 },
                 "role": {
                     "type": "string",
-                    "description": "Specialized role for the sub-agents (e.g., 'security auditor', 'test writer', 'documentation expert')"
+                    "description": "Specialized role for the sub-agents (e.g., 'security auditor', 'test writer', 'documentation expert')",
                 },
                 "context": {
                     "type": "string",
-                    "description": "Relevant background information or context from your current work"
+                    "description": "Relevant background information or context from your current work",
                 },
                 "tools": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Specific tools to enable. Use tool names like 'read_file', 'write_file', 'edit_file', 'bash'. If not specified, inherits parent tools (except spawn_agent at max depth)."
+                    "description": "Specific tools to enable. Use tool names like 'read_file', 'write_file', 'edit_file', 'bash'. If not specified, inherits parent tools (except spawn_agent at max depth).",
                 },
                 "max_steps": {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 30,
-                    "description": f"Maximum steps for sub-agents execution (default: {self._default_max_steps})"
-                }
+                    "description": f"Maximum steps for sub-agents execution (default: {self._default_max_steps})",
+                },
             },
-            "required": ["task"]
+            "required": ["task"],
         }
 
     @property
@@ -139,11 +137,11 @@ spawn_agent(
     async def execute(
         self,
         task: str,
-        role: Optional[str] = None,
-        context: Optional[str] = None,
-        tools: Optional[List[str]] = None,
-        max_steps: Optional[int] = None,
-        **kwargs
+        role: str | None = None,
+        context: str | None = None,
+        tools: list[str] | None = None,
+        max_steps: int | None = None,
+        **kwargs,
     ) -> ToolResult:
         """使用给定配置执行子 Agent。
 
@@ -164,7 +162,7 @@ spawn_agent(
         if self._current_depth >= self._max_depth:
             return ToolResult(
                 success=False,
-                error=f"Maximum agents nesting depth ({self._max_depth}) reached. Cannot spawn more sub-agents. Consider completing the task with available tools instead."
+                error=f"Maximum agents nesting depth ({self._max_depth}) reached. Cannot spawn more sub-agents. Consider completing the task with available tools instead.",
             )
 
         try:
@@ -192,14 +190,17 @@ spawn_agent(
 
             # Log sub-agents spawn event
             if self._parent_logger:
-                self._parent_logger.log_event("SUB_AGENT_SPAWN", {
-                    "task": task[:200],  # Truncate for logging
-                    "role": role,
-                    "depth": self._current_depth + 1,
-                    "max_depth": self._max_depth,
-                    "tools": [t.name for t in sub_tools],
-                    "max_steps": effective_max_steps,
-                })
+                self._parent_logger.log_event(
+                    "SUB_AGENT_SPAWN",
+                    {
+                        "task": task[:200],  # Truncate for logging
+                        "role": role,
+                        "depth": self._current_depth + 1,
+                        "max_depth": self._max_depth,
+                        "tools": [t.name for t in sub_tools],
+                        "max_steps": effective_max_steps,
+                    },
+                )
 
             # Run sub-agents
             sub_agent.add_user_message(task)
@@ -208,18 +209,23 @@ spawn_agent(
             # Calculate execution stats
             steps_used = len([log for log in logs if log.get("type") == "step"])
             tool_calls = len([log for log in logs if log.get("type") == "tool_call"])
-            errors = [log for log in logs if log.get("type") == "error" or not log.get("success", True)]
+            errors = [
+                log for log in logs if log.get("type") == "error" or not log.get("success", True)
+            ]
 
             # Log completion event
             if self._parent_logger:
-                self._parent_logger.log_event("SUB_AGENT_COMPLETE", {
-                    "task": task[:200],
-                    "role": role,
-                    "depth": self._current_depth + 1,
-                    "steps_used": steps_used,
-                    "tool_calls": tool_calls,
-                    "success": len(errors) == 0,
-                })
+                self._parent_logger.log_event(
+                    "SUB_AGENT_COMPLETE",
+                    {
+                        "task": task[:200],
+                        "role": role,
+                        "depth": self._current_depth + 1,
+                        "steps_used": steps_used,
+                        "tool_calls": tool_calls,
+                        "success": len(errors) == 0,
+                    },
+                )
 
             # Format result for parent agents
             formatted_result = self._format_result(
@@ -237,15 +243,18 @@ spawn_agent(
             error_msg = f"Sub-agents execution failed: {str(e)}"
 
             if self._parent_logger:
-                self._parent_logger.log_event("SUB_AGENT_ERROR", {
-                    "task": task[:200],
-                    "role": role,
-                    "error": str(e),
-                })
+                self._parent_logger.log_event(
+                    "SUB_AGENT_ERROR",
+                    {
+                        "task": task[:200],
+                        "role": role,
+                        "error": str(e),
+                    },
+                )
 
             return ToolResult(success=False, error=error_msg)
 
-    def _build_sub_agent_tools(self, tool_names: Optional[List[str]]) -> List[Tool]:
+    def _build_sub_agent_tools(self, tool_names: list[str] | None) -> list[Tool]:
         """为子 Agent 构建工具列表。
 
         Args:
@@ -289,11 +298,7 @@ spawn_agent(
 
         return tools
 
-    def _build_sub_agent_prompt(
-        self,
-        role: Optional[str],
-        context: Optional[str]
-    ) -> str:
+    def _build_sub_agent_prompt(self, role: str | None, context: str | None) -> str:
         """为子 Agent 构建系统提示。
 
         Args:
@@ -355,7 +360,7 @@ Use this sparingly and only for truly independent subtasks.
     def _format_result(
         self,
         task: str,
-        role: Optional[str],
+        role: str | None,
         result: str,
         steps_used: int,
         tool_calls: int,

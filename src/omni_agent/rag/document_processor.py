@@ -1,4 +1,5 @@
 """文档处理器，用于解析和分块文件。"""
+
 from pathlib import Path
 from typing import BinaryIO
 
@@ -102,14 +103,16 @@ class DocumentProcessor:
             chunk_content = text[start:end].strip()
 
             if chunk_content:
-                chunks.append({
-                    "content": chunk_content,
-                    "chunk_index": chunk_index,
-                    "metadata": {
-                        "start_char": start,
-                        "end_char": end,
-                    },
-                })
+                chunks.append(
+                    {
+                        "content": chunk_content,
+                        "chunk_index": chunk_index,
+                        "metadata": {
+                            "start_char": start,
+                            "end_char": end,
+                        },
+                    }
+                )
                 chunk_index += 1
 
             # Move start position with overlap

@@ -48,7 +48,8 @@ def parse_args() -> argparse.Namespace:
         help="output directory for reports (default: eval_results)",
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="verbose logging",
     )

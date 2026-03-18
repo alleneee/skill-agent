@@ -1,30 +1,28 @@
 """ACP 适配器，用于在 ACP 和内部消息格式之间转换。"""
-from typing import Any, Optional
-from uuid import uuid4
+
+from typing import Any
 
 from omni_agent.acp.schemas import (
     AgentCapabilities,
     AgentInfo,
     InitializeResponse,
-    PromptCapabilities,
+    JsonRpcResponse,
     McpCapabilities,
-    SessionNewResponse,
-    SessionPromptResponse,
-    SessionUpdate,
-    ToolCall,
-    ToolCallUpdate,
-    ToolKind,
-    ToolCallStatus,
-    ToolCallLocation,
     Plan,
     PlanEntry,
     PlanEntryStatus,
+    PromptCapabilities,
+    SessionNewResponse,
+    SessionPromptResponse,
+    SessionUpdate,
     TextContent,
-    ContentBlock,
-    JsonRpcResponse,
+    ToolCall,
+    ToolCallLocation,
+    ToolCallStatus,
+    ToolCallUpdate,
+    ToolKind,
 )
 from omni_agent.schemas.message import Message
-
 
 TOOL_NAME_TO_KIND: dict[str, ToolKind] = {
     "read_file": ToolKind.READ,
@@ -43,7 +41,7 @@ class ACPAdapter:
     def create_initialize_response(
         name: str = "omni-agents",
         version: str = "1.0.0",
-        title: Optional[str] = None,
+        title: str | None = None,
     ) -> InitializeResponse:
         return InitializeResponse(
             protocolVersion=1,
@@ -139,8 +137,8 @@ class ACPAdapter:
         session_id: str,
         tool_call_id: str,
         success: bool,
-        content: Optional[str] = None,
-        error: Optional[str] = None,
+        content: str | None = None,
+        error: str | None = None,
     ) -> SessionUpdate:
         status = ToolCallStatus.DONE if success else ToolCallStatus.ERROR
         update = ToolCallUpdate(
@@ -170,7 +168,7 @@ class ACPAdapter:
 
     @staticmethod
     def wrap_jsonrpc_response(
-        request_id: Optional[int | str],
+        request_id: int | str | None,
         result: Any,
     ) -> JsonRpcResponse:
         return JsonRpcResponse(
@@ -181,12 +179,13 @@ class ACPAdapter:
 
     @staticmethod
     def wrap_jsonrpc_error(
-        request_id: Optional[int | str],
+        request_id: int | str | None,
         code: int,
         message: str,
-        data: Optional[Any] = None,
+        data: Any | None = None,
     ) -> JsonRpcResponse:
         from omni_agent.acp.schemas import JsonRpcError
+
         return JsonRpcResponse(
             jsonrpc="2.0",
             id=request_id,

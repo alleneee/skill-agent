@@ -1,4 +1,5 @@
 """Agent 反馈端点."""
+
 from typing import Any
 
 from fastapi import APIRouter

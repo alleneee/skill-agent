@@ -13,14 +13,11 @@ import time
 
 logger = logging.getLogger(__name__)
 from abc import ABC, abstractmethod
-from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, TypeVar
+from typing import Any, TypeVar
 
 from omni_agent.core.session import (
-    AgentRunRecord,
     AgentSession,
-    RunRecord,
     TeamSession,
 )
 
@@ -31,12 +28,12 @@ class SessionStorage(ABC):
     """Session 存储后端抽象基类."""
 
     @abstractmethod
-    async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_session(self, session_id: str) -> dict[str, Any] | None:
         """获取会话数据."""
         pass
 
     @abstractmethod
-    async def save_session(self, session_id: str, data: Dict[str, Any]) -> None:
+    async def save_session(self, session_id: str, data: dict[str, Any]) -> None:
         """保存会话数据."""
         pass
 
@@ -46,7 +43,7 @@ class SessionStorage(ABC):
         pass
 
     @abstractmethod
-    async def list_sessions(self) -> List[str]:
+    async def list_sessions(self) -> list[str]:
         """列出所有会话 ID."""
         pass
 
@@ -79,7 +76,7 @@ class FileStorage(SessionStorage):
         """
         self.storage_path = Path(storage_path).expanduser()
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
-        self._data: Dict[str, Dict[str, Any]] = {}
+        self._data: dict[str, dict[str, Any]] = {}
         self._load()
 
     def _load(self) -> None:
@@ -88,7 +85,7 @@ class FileStorage(SessionStorage):
             try:
                 with self.storage_path.open("r", encoding="utf-8") as f:
                     self._data = json.load(f)
-            except (json.JSONDecodeError, IOError) as e:
+            except (OSError, json.JSONDecodeError) as e:
                 logger.warning("Failed to load session storage from %s: %s", self.storage_path, e)
                 self._data = {}
 
@@ -104,10 +101,10 @@ class FileStorage(SessionStorage):
                 temp_file.unlink()
             raise e
 
-    async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_session(self, session_id: str) -> dict[str, Any] | None:
         return self._data.get(session_id)
 
-    async def save_session(self, session_id: str, data: Dict[str, Any]) -> None:
+    async def save_session(self, session_id: str, data: dict[str, Any]) -> None:
         self._data[session_id] = data
         self._save()
 
@@ -118,14 +115,13 @@ class FileStorage(SessionStorage):
             return True
         return False
 
-    async def list_sessions(self) -> List[str]:
+    async def list_sessions(self) -> list[str]:
         return list(self._data.keys())
 
     async def cleanup_expired(self, max_age_seconds: int) -> int:
         cutoff_time = time.time() - max_age_seconds
         to_delete = [
-            sid for sid, data in self._data.items()
-            if data.get("updated_at", 0) < cutoff_time
+            sid for sid, data in self._data.items() if data.get("updated_at", 0) < cutoff_time
         ]
         for sid in to_delete:
             del self._data[sid]
@@ -153,7 +149,7 @@ class RedisStorage(SessionStorage):
         host: str = "localhost",
         port: int = 6379,
         db: int = 0,
-        password: Optional[str] = None,
+        password: str | None = None,
         prefix: str = "session:",
         ttl_seconds: int = 7 * 86400,  # 默认 7 天
     ):
@@ -171,8 +167,7 @@ class RedisStorage(SessionStorage):
             import redis.asyncio as redis
         except ImportError:
             raise ImportError(
-                "Redis support requires 'redis' package. "
-                "Install with: pip install redis"
+                "Redis support requires 'redis' package. Install with: pip install redis"
             )
 
         self.prefix = prefix
@@ -189,25 +184,21 @@ class RedisStorage(SessionStorage):
         """生成 Redis key."""
         return f"{self.prefix}{session_id}"
 
-    async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_session(self, session_id: str) -> dict[str, Any] | None:
         data = await self._redis.get(self._key(session_id))
         if data:
             return json.loads(data)
         return None
 
-    async def save_session(self, session_id: str, data: Dict[str, Any]) -> None:
+    async def save_session(self, session_id: str, data: dict[str, Any]) -> None:
         key = self._key(session_id)
-        await self._redis.setex(
-            key,
-            self.ttl_seconds,
-            json.dumps(data, ensure_ascii=False)
-        )
+        await self._redis.setex(key, self.ttl_seconds, json.dumps(data, ensure_ascii=False))
 
     async def delete_session(self, session_id: str) -> bool:
         result = await self._redis.delete(self._key(session_id))
         return result > 0
 
-    async def list_sessions(self) -> List[str]:
+    async def list_sessions(self) -> list[str]:
         keys = await self._redis.keys(f"{self.prefix}*")
         return [k.replace(self.prefix, "") for k in keys]
 
@@ -311,7 +302,7 @@ class PostgresStorage(SessionStorage):
                 ON {self.table_name}(session_type)
             """)
 
-    async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_session(self, session_id: str) -> dict[str, Any] | None:
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
@@ -320,13 +311,13 @@ class PostgresStorage(SessionStorage):
                 WHERE session_id = $1 AND session_type = $2
                 """,
                 session_id,
-                self.session_type
+                self.session_type,
             )
             if row:
                 return json.loads(row["data"])
             return None
 
-    async def save_session(self, session_id: str, data: Dict[str, Any]) -> None:
+    async def save_session(self, session_id: str, data: dict[str, Any]) -> None:
         pool = await self._get_pool()
         json_data = json.dumps(data, ensure_ascii=False)
         async with pool.acquire() as conn:
@@ -339,7 +330,7 @@ class PostgresStorage(SessionStorage):
                 """,
                 session_id,
                 self.session_type,
-                json_data
+                json_data,
             )
 
     async def delete_session(self, session_id: str) -> bool:
@@ -351,11 +342,11 @@ class PostgresStorage(SessionStorage):
                 WHERE session_id = $1 AND session_type = $2
                 """,
                 session_id,
-                self.session_type
+                self.session_type,
             )
             return "DELETE 1" in result
 
-    async def list_sessions(self) -> List[str]:
+    async def list_sessions(self) -> list[str]:
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch(
@@ -363,7 +354,7 @@ class PostgresStorage(SessionStorage):
                 SELECT session_id FROM {self.table_name}
                 WHERE session_type = $1
                 """,
-                self.session_type
+                self.session_type,
             )
             return [row["session_id"] for row in rows]
 
@@ -376,7 +367,7 @@ class PostgresStorage(SessionStorage):
                 WHERE session_type = $1
                 AND updated_at < CURRENT_TIMESTAMP - INTERVAL '{max_age_seconds} seconds'
                 """,
-                self.session_type
+                self.session_type,
             )
             # Parse "DELETE N" to get count
             try:
@@ -395,10 +386,7 @@ class PostgresStorage(SessionStorage):
 # ============================================================================
 
 
-def create_storage(
-    backend: str = "file",
-    **kwargs
-) -> SessionStorage:
+def create_storage(backend: str = "file", **kwargs) -> SessionStorage:
     """创建存储后端实例.
 
     Args:
@@ -437,9 +425,6 @@ def create_storage(
 
     backend_lower = backend.lower()
     if backend_lower not in backends:
-        raise ValueError(
-            f"Unknown storage backend: {backend}. "
-            f"Available: {list(backends.keys())}"
-        )
+        raise ValueError(f"Unknown storage backend: {backend}. Available: {list(backends.keys())}")
 
     return backends[backend_lower](**kwargs)

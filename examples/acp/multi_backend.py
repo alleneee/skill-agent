@@ -80,25 +80,29 @@ def list_backends() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Multi-backend ACP client")
     parser.add_argument(
-        "--backend", "-b",
+        "--backend",
+        "-b",
         type=str,
         default="claude",
         help="Backend to use (claude, codex, qwen, goose, auggie, kimi, opencode)",
     )
     parser.add_argument(
-        "--prompt", "-p",
+        "--prompt",
+        "-p",
         type=str,
         default="What is 2 + 2? Answer briefly.",
         help="Prompt to send",
     )
     parser.add_argument(
-        "--workspace", "-w",
+        "--workspace",
+        "-w",
         type=str,
         default=os.getcwd(),
         help="Workspace directory",
     )
     parser.add_argument(
-        "--list", "-l",
+        "--list",
+        "-l",
         action="store_true",
         help="List available backends",
     )

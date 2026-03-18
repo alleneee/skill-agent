@@ -1,4 +1,5 @@
 """ANSI 颜色定义和 CLI 输出显示工具。"""
+
 import re
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
@@ -229,8 +230,7 @@ def format_tool_result(
     content = content.replace("\n", " ")
 
     return (
-        f"{Colors.DIM}  -> [{status}] {time_str}{Colors.RESET} "
-        f"{Colors.DIM}{content}{Colors.RESET}"
+        f"{Colors.DIM}  -> [{status}] {time_str}{Colors.RESET} {Colors.DIM}{content}{Colors.RESET}"
     )
 
 

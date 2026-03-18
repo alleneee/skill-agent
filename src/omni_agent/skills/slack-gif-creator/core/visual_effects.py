@@ -6,19 +6,27 @@ This module provides high-impact visual effects that make animations feel
 professional and dynamic while keeping file sizes reasonable.
 """
 
-from PIL import Image, ImageDraw, ImageFilter
-import numpy as np
 import math
 import random
-from typing import Optional
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter
 
 
 class Particle:
     """A single particle in a particle system."""
 
-    def __init__(self, x: float, y: float, vx: float, vy: float,
-                 lifetime: float, color: tuple[int, int, int],
-                 size: int = 3, shape: str = 'circle'):
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        vx: float,
+        vy: float,
+        lifetime: float,
+        color: tuple[int, int, int],
+        size: int = 3,
+        shape: str = "circle",
+    ):
         """
         Initialize a particle.
 
@@ -40,7 +48,7 @@ class Particle:
         self.size = size
         self.shape = shape
         self.gravity = 0.5  # Pixels per frame squared
-        self.drag = 0.98    # Velocity multiplier per frame
+        self.drag = 0.98  # Velocity multiplier per frame
 
     def update(self):
         """Update particle position and lifetime."""
@@ -84,13 +92,13 @@ class Particle:
         x, y = int(self.x), int(self.y)
         size = max(1, int(self.size * alpha))
 
-        if self.shape == 'circle':
+        if self.shape == "circle":
             bbox = [x - size, y - size, x + size, y + size]
             draw.ellipse(bbox, fill=color)
-        elif self.shape == 'square':
+        elif self.shape == "square":
             bbox = [x - size, y - size, x + size, y + size]
             draw.rectangle(bbox, fill=color)
-        elif self.shape == 'star':
+        elif self.shape == "star":
             # Simple 4-point star
             points = [
                 (x, y - size),
@@ -110,10 +118,18 @@ class ParticleSystem:
         """Initialize particle system."""
         self.particles: list[Particle] = []
 
-    def emit(self, x: int, y: int, count: int = 10,
-             spread: float = 2.0, speed: float = 5.0,
-             color: tuple[int, int, int] = (255, 200, 0),
-             lifetime: float = 20.0, size: int = 3, shape: str = 'circle'):
+    def emit(
+        self,
+        x: int,
+        y: int,
+        count: int = 10,
+        spread: float = 2.0,
+        speed: float = 5.0,
+        color: tuple[int, int, int] = (255, 200, 0),
+        lifetime: float = 20.0,
+        size: int = 3,
+        shape: str = "circle",
+    ):
         """
         Emit a burst of particles.
 
@@ -140,8 +156,9 @@ class ParticleSystem:
             particle = Particle(x, y, vx, vy, life, color, size, shape)
             self.particles.append(particle)
 
-    def emit_confetti(self, x: int, y: int, count: int = 20,
-                      colors: Optional[list[tuple[int, int, int]]] = None):
+    def emit_confetti(
+        self, x: int, y: int, count: int = 20, colors: list[tuple[int, int, int]] | None = None
+    ):
         """
         Emit confetti particles (colorful, falling).
 
@@ -152,15 +169,19 @@ class ParticleSystem:
         """
         if colors is None:
             colors = [
-                (255, 107, 107), (255, 159, 64), (255, 218, 121),
-                (107, 185, 240), (162, 155, 254), (255, 182, 193)
+                (255, 107, 107),
+                (255, 159, 64),
+                (255, 218, 121),
+                (107, 185, 240),
+                (162, 155, 254),
+                (255, 182, 193),
             ]
 
         for _ in range(count):
             color = random.choice(colors)
             vx = random.uniform(-3, 3)
             vy = random.uniform(-8, -2)
-            shape = random.choice(['square', 'circle'])
+            shape = random.choice(["square", "circle"])
             size = random.randint(2, 4)
             lifetime = random.uniform(40, 60)
 
@@ -186,7 +207,7 @@ class ParticleSystem:
             vy = math.sin(angle) * speed
             lifetime = random.uniform(15, 30)
 
-            particle = Particle(x, y, vx, vy, lifetime, color, 2, 'star')
+            particle = Particle(x, y, vx, vy, lifetime, color, 2, "star")
             particle.gravity = 0
             particle.drag = 0.95
             self.particles.append(particle)
@@ -210,8 +231,9 @@ class ParticleSystem:
         return len(self.particles)
 
 
-def add_motion_blur(frame: Image.Image, prev_frame: Optional[Image.Image],
-                    blur_amount: float = 0.5) -> Image.Image:
+def add_motion_blur(
+    frame: Image.Image, prev_frame: Image.Image | None, blur_amount: float = 0.5
+) -> Image.Image:
     """
     Add motion blur by blending with previous frame.
 
@@ -236,8 +258,9 @@ def add_motion_blur(frame: Image.Image, prev_frame: Optional[Image.Image],
     return Image.fromarray(blended)
 
 
-def create_impact_flash(frame: Image.Image, position: tuple[int, int],
-                        radius: int = 100, intensity: float = 0.7) -> Image.Image:
+def create_impact_flash(
+    frame: Image.Image, position: tuple[int, int], radius: int = 100, intensity: float = 0.7
+) -> Image.Image:
     """
     Create a bright flash effect at impact point.
 
@@ -251,7 +274,7 @@ def create_impact_flash(frame: Image.Image, position: tuple[int, int],
         Modified frame
     """
     # Create overlay
-    overlay = Image.new('RGBA', frame.size, (0, 0, 0, 0))
+    overlay = Image.new("RGBA", frame.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
     x, y = position
@@ -267,14 +290,18 @@ def create_impact_flash(frame: Image.Image, position: tuple[int, int],
         draw.ellipse(bbox, fill=color)
 
     # Composite onto frame
-    frame_rgba = frame.convert('RGBA')
+    frame_rgba = frame.convert("RGBA")
     frame_rgba = Image.alpha_composite(frame_rgba, overlay)
-    return frame_rgba.convert('RGB')
+    return frame_rgba.convert("RGB")
 
 
-def create_shockwave_rings(frame: Image.Image, position: tuple[int, int],
-                           radii: list[int], color: tuple[int, int, int] = (255, 200, 0),
-                           width: int = 3) -> Image.Image:
+def create_shockwave_rings(
+    frame: Image.Image,
+    position: tuple[int, int],
+    radii: list[int],
+    color: tuple[int, int, int] = (255, 200, 0),
+    width: int = 3,
+) -> Image.Image:
     """
     Create expanding ring effects.
 
@@ -298,9 +325,13 @@ def create_shockwave_rings(frame: Image.Image, position: tuple[int, int],
     return frame
 
 
-def create_explosion_effect(frame: Image.Image, position: tuple[int, int],
-                            radius: int, progress: float,
-                            color: tuple[int, int, int] = (255, 150, 0)) -> Image.Image:
+def create_explosion_effect(
+    frame: Image.Image,
+    position: tuple[int, int],
+    radius: int,
+    progress: float,
+    color: tuple[int, int, int] = (255, 150, 0),
+) -> Image.Image:
     """
     Create an explosion effect that expands and fades.
 
@@ -318,7 +349,7 @@ def create_explosion_effect(frame: Image.Image, position: tuple[int, int],
     fade = 1 - progress
 
     # Create overlay
-    overlay = Image.new('RGBA', frame.size, (0, 0, 0, 0))
+    overlay = Image.new("RGBA", frame.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
     x, y = position
@@ -332,14 +363,17 @@ def create_explosion_effect(frame: Image.Image, position: tuple[int, int],
     draw.ellipse(bbox, fill=circle_color)
 
     # Composite
-    frame_rgba = frame.convert('RGBA')
+    frame_rgba = frame.convert("RGBA")
     frame_rgba = Image.alpha_composite(frame_rgba, overlay)
-    return frame_rgba.convert('RGB')
+    return frame_rgba.convert("RGB")
 
 
-def add_glow_effect(frame: Image.Image, mask_color: tuple[int, int, int],
-                    glow_color: tuple[int, int, int],
-                    blur_radius: int = 10) -> Image.Image:
+def add_glow_effect(
+    frame: Image.Image,
+    mask_color: tuple[int, int, int],
+    glow_color: tuple[int, int, int],
+    blur_radius: int = 10,
+) -> Image.Image:
     """
     Add a glow effect to areas of a specific color.
 
@@ -357,7 +391,7 @@ def add_glow_effect(frame: Image.Image, mask_color: tuple[int, int, int],
     mask = np.all(frame_array == mask_color, axis=-1)
 
     # Create glow layer
-    glow = Image.new('RGB', frame.size, (0, 0, 0))
+    glow = Image.new("RGB", frame.size, (0, 0, 0))
     glow_array = np.array(glow)
     glow_array[mask] = glow_color
     glow = Image.fromarray(glow_array)
@@ -370,10 +404,13 @@ def add_glow_effect(frame: Image.Image, mask_color: tuple[int, int, int],
     return blended
 
 
-def add_drop_shadow(frame: Image.Image, object_bounds: tuple[int, int, int, int],
-                    shadow_offset: tuple[int, int] = (5, 5),
-                    shadow_color: tuple[int, int, int] = (0, 0, 0),
-                    blur: int = 5) -> Image.Image:
+def add_drop_shadow(
+    frame: Image.Image,
+    object_bounds: tuple[int, int, int, int],
+    shadow_offset: tuple[int, int] = (5, 5),
+    shadow_color: tuple[int, int, int] = (0, 0, 0),
+    blur: int = 5,
+) -> Image.Image:
     """
     Add drop shadow to an object.
 
@@ -392,10 +429,10 @@ def add_drop_shadow(frame: Image.Image, object_bounds: tuple[int, int, int, int]
     obj = frame.crop((x1, y1, x2, y2))
 
     # Create shadow
-    shadow = Image.new('RGBA', obj.size, (*shadow_color, 180))
+    shadow = Image.new("RGBA", obj.size, (*shadow_color, 180))
 
     # Create frame with alpha
-    frame_rgba = frame.convert('RGBA')
+    frame_rgba = frame.convert("RGBA")
 
     # Paste shadow
     shadow_pos = (x1 + shadow_offset[0], y1 + shadow_offset[1])
@@ -404,12 +441,17 @@ def add_drop_shadow(frame: Image.Image, object_bounds: tuple[int, int, int, int]
     # Paste object on top
     frame_rgba.paste(obj, (x1, y1))
 
-    return frame_rgba.convert('RGB')
+    return frame_rgba.convert("RGB")
 
 
-def create_speed_lines(frame: Image.Image, position: tuple[int, int],
-                       direction: float, length: int = 50,
-                       count: int = 5, color: tuple[int, int, int] = (200, 200, 200)) -> Image.Image:
+def create_speed_lines(
+    frame: Image.Image,
+    position: tuple[int, int],
+    direction: float,
+    length: int = 50,
+    count: int = 5,
+    color: tuple[int, int, int] = (200, 200, 200),
+) -> Image.Image:
     """
     Create speed lines for motion effect.
 
@@ -430,7 +472,7 @@ def create_speed_lines(frame: Image.Image, position: tuple[int, int],
     # Opposite direction (lines trail behind)
     trail_angle = direction + math.pi
 
-    for i in range(count):
+    for _i in range(count):
         # Offset from center
         offset_angle = trail_angle + random.uniform(-0.3, 0.3)
         offset_dist = random.uniform(10, 30)
@@ -443,7 +485,7 @@ def create_speed_lines(frame: Image.Image, position: tuple[int, int],
         end_y = start_y + math.sin(trail_angle) * line_length
 
         # Draw line with varying opacity
-        alpha = random.randint(100, 200)
+        random.randint(100, 200)
         width = random.randint(1, 3)
 
         # Simple line (full opacity simulation)
@@ -486,7 +528,7 @@ def apply_screen_shake(frame: Image.Image, intensity: int, frame_index: int) -> 
     offset_x, offset_y = create_screen_shake_offset(intensity, frame_index)
 
     # Create new frame with background
-    shaken = Image.new('RGB', frame.size, (0, 0, 0))
+    shaken = Image.new("RGB", frame.size, (0, 0, 0))
 
     # Paste original frame with offset
     shaken.paste(frame, (offset_x, offset_y))

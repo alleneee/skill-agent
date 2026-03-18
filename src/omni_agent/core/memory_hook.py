@@ -82,6 +82,7 @@ class MemoryHook(AgentHook):
         if self._embedding_service is None and self._enable_vector_dedup:
             try:
                 from omni_agent.rag.embedding_service import embedding_service
+
                 self._embedding_service = embedding_service
             except Exception as e:
                 logger.warning(f"加载 embedding 服务失败: {e}")

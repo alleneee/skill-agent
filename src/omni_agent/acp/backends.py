@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 
 class AcpBackendId(str, Enum):
@@ -20,8 +19,8 @@ class AcpBackendId(str, Enum):
 class AcpBackendConfig:
     id: str
     name: str
-    cli_command: Optional[str] = None
-    default_cli_path: Optional[str] = None
+    cli_command: str | None = None
+    default_cli_path: str | None = None
     acp_args: list[str] = field(default_factory=lambda: ["--experimental-acp"])
     auth_required: bool = False
     enabled: bool = True
@@ -126,7 +125,7 @@ ACP_BACKENDS: dict[str, AcpBackendConfig] = {
 }
 
 
-def get_backend_config(backend_id: str) -> Optional[AcpBackendConfig]:
+def get_backend_config(backend_id: str) -> AcpBackendConfig | None:
     return ACP_BACKENDS.get(backend_id)
 
 
@@ -134,7 +133,7 @@ def get_enabled_backends() -> list[AcpBackendConfig]:
     return [cfg for cfg in ACP_BACKENDS.values() if cfg.enabled]
 
 
-def get_cli_args(backend_id: str, cli_path: Optional[str] = None) -> tuple[str, list[str]]:
+def get_cli_args(backend_id: str, cli_path: str | None = None) -> tuple[str, list[str]]:
     config = get_backend_config(backend_id)
     if not config:
         raise ValueError(f"Unknown backend: {backend_id}")

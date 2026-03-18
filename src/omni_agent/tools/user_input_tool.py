@@ -5,7 +5,8 @@
 灵感来自 agno 的 UserControlFlowTools 实现。
 """
 
-from typing import Any, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from omni_agent.tools.base import Tool, ToolResult
@@ -13,25 +14,20 @@ from omni_agent.tools.base import Tool, ToolResult
 
 class UserInputField(BaseModel):
     """单个用户输入字段的模式。"""
+
     field_name: str = Field(..., description="需要获取输入的字段名称")
     field_type: str = Field(
-        default="str",
-        description="字段类型 (str, int, float, bool, list, dict)"
+        default="str", description="字段类型 (str, int, float, bool, list, dict)"
     )
     field_description: str = Field(..., description="字段描述")
-    value: Optional[Any] = Field(default=None, description="用户提供的值")
+    value: Any | None = Field(default=None, description="用户提供的值")
 
 
 class UserInputRequest(BaseModel):
     """包含多个字段的用户输入请求。"""
-    fields: list[UserInputField] = Field(
-        default_factory=list,
-        description="需要用户输入的字段列表"
-    )
-    context: Optional[str] = Field(
-        default=None,
-        description="解释为什么需要输入的附加上下文"
-    )
+
+    fields: list[UserInputField] = Field(default_factory=list, description="需要用户输入的字段列表")
+    context: str | None = Field(default=None, description="解释为什么需要输入的附加上下文")
 
 
 class GetUserInputTool(Tool):
@@ -41,13 +37,13 @@ class GetUserInputTool(Tool):
 
     工具执行本身不做任何事情 - agents 循环检测到此工具调用后会处理暂停/恢复逻辑。
     """
-    
+
     TOOL_NAME = "get_user_input"
-    
+
     @property
     def name(self) -> str:
         return self.TOOL_NAME
-    
+
     @property
     def description(self) -> str:
         return (
@@ -55,7 +51,7 @@ class GetUserInputTool(Tool):
             "clarification or missing information to complete a task. Provide all "
             "required fields as if the user were filling out a form."
         )
-    
+
     @property
     def parameters(self) -> dict[str, Any]:
         return {
@@ -69,29 +65,29 @@ class GetUserInputTool(Tool):
                         "properties": {
                             "field_name": {
                                 "type": "string",
-                                "description": "The name of the field"
+                                "description": "The name of the field",
                             },
                             "field_type": {
                                 "type": "string",
                                 "description": "The type of the field (str, int, float, bool, list, dict)",
-                                "enum": ["str", "int", "float", "bool", "list", "dict"]
+                                "enum": ["str", "int", "float", "bool", "list", "dict"],
                             },
                             "field_description": {
                                 "type": "string",
-                                "description": "A description of what information is needed"
-                            }
+                                "description": "A description of what information is needed",
+                            },
                         },
-                        "required": ["field_name", "field_description"]
-                    }
+                        "required": ["field_name", "field_description"],
+                    },
                 },
                 "context": {
                     "type": "string",
-                    "description": "Additional context explaining why this input is needed"
-                }
+                    "description": "Additional context explaining why this input is needed",
+                },
             },
-            "required": ["user_input_fields"]
+            "required": ["user_input_fields"],
         }
-    
+
     @property
     def instructions(self) -> str:
         return """
@@ -137,16 +133,13 @@ You have access to the `get_user_input` tool to request information from the use
 }
 ```
 """
-    
+
     @property
     def add_instructions_to_prompt(self) -> bool:
         return True
-    
+
     async def execute(
-        self,
-        user_input_fields: list[dict[str, str]],
-        context: Optional[str] = None,
-        **kwargs
+        self, user_input_fields: list[dict[str, str]], context: str | None = None, **kwargs
     ) -> ToolResult:
         """执行工具 - 实际逻辑由 agents 循环处理。
 
@@ -163,8 +156,7 @@ You have access to the `get_user_input` tool to request information from the use
         # The actual pause/resume logic is handled by the agents loop
         # This just returns a placeholder result
         return ToolResult(
-            success=True,
-            content="User input request registered. Waiting for user response."
+            success=True, content="User input request registered. Waiting for user response."
         )
 
 
@@ -184,9 +176,11 @@ def parse_user_input_fields(arguments: dict[str, Any]) -> list[UserInputField]:
     """
     fields = []
     for field_data in arguments.get("user_input_fields", []):
-        fields.append(UserInputField(
-            field_name=field_data.get("field_name", ""),
-            field_type=field_data.get("field_type", "str"),
-            field_description=field_data.get("field_description", ""),
-        ))
+        fields.append(
+            UserInputField(
+                field_name=field_data.get("field_name", ""),
+                field_type=field_data.get("field_type", "str"),
+                field_description=field_data.get("field_description", ""),
+            )
+        )
     return fields

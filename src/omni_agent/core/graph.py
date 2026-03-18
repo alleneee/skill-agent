@@ -39,22 +39,15 @@
 
 import asyncio
 import logging
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import (
     Any,
-    Callable,
-    Coroutine,
-    Dict,
     Generic,
-    List,
-    Optional,
-    Set,
-    Tuple,
     TypeVar,
-    Union,
-    get_type_hints,
     get_origin,
+    get_type_hints,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,13 +57,14 @@ START = "__start__"  # 图的入口点
 END = "__end__"  # 图的终止点
 
 # 类型定义
-StateType = TypeVar("StateType", bound=Dict[str, Any])
-NodeFunc = Callable[[Any], Union[Dict[str, Any], Coroutine[Any, Any, Dict[str, Any]]]]
+StateType = TypeVar("StateType", bound=dict[str, Any])
+NodeFunc = Callable[[Any], dict[str, Any] | Coroutine[Any, Any, dict[str, Any]]]
 ConditionFunc = Callable[[Any], str]
 
 
 class EdgeType(Enum):
     """边类型枚举."""
+
     NORMAL = "normal"  # 普通边：无条件连接
     CONDITIONAL = "conditional"  # 条件边：根据条件函数决定目标
 
@@ -78,22 +72,24 @@ class EdgeType(Enum):
 @dataclass
 class Edge:
     """图中的边，连接两个节点."""
+
     source: str  # 源节点名称
     target: str  # 目标节点名称
     edge_type: EdgeType = EdgeType.NORMAL
-    condition: Optional[ConditionFunc] = None  # 条件函数（仅条件边使用）
-    condition_map: Optional[Dict[str, str]] = None  # 条件结果到节点名的映射
+    condition: ConditionFunc | None = None  # 条件函数（仅条件边使用）
+    condition_map: dict[str, str] | None = None  # 条件结果到节点名的映射
 
 
 @dataclass
 class Node:
     """图中的节点，包含处理函数."""
+
     name: str  # 节点名称
     func: NodeFunc  # 节点处理函数，接收状态返回更新
-    metadata: Dict[str, Any] = field(default_factory=dict)  # 元数据
+    metadata: dict[str, Any] = field(default_factory=dict)  # 元数据
 
 
-def get_reducer(state_type: type, key: str) -> Optional[Callable[[Any, Any], Any]]:
+def get_reducer(state_type: type, key: str) -> Callable[[Any, Any], Any] | None:
     """从 Annotated 类型提示中提取 reducer 函数.
 
     Reducer 用于在并行执行时合并多个节点对同一字段的更新。
@@ -113,22 +109,20 @@ def get_reducer(state_type: type, key: str) -> Optional[Callable[[Any, Any], Any
             return None
 
         origin = get_origin(hint)
-        if origin is not None:
-            from typing import Annotated
-            if hasattr(hint, "__metadata__"):
-                for meta in hint.__metadata__:
-                    if callable(meta):
-                        return meta
+        if origin is not None and hasattr(hint, "__metadata__"):
+            for meta in hint.__metadata__:
+                if callable(meta):
+                    return meta
         return None
     except Exception:
         return None
 
 
 def merge_state(
-    current: Dict[str, Any],
-    update: Dict[str, Any],
+    current: dict[str, Any],
+    update: dict[str, Any],
     state_type: type,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """合并状态更新到当前状态.
 
     对于定义了 reducer 的字段，使用 reducer 函数合并；
@@ -163,8 +157,8 @@ class CompiledGraph(Generic[StateType]):
 
     def __init__(
         self,
-        nodes: Dict[str, Node],
-        edges: List[Edge],
+        nodes: dict[str, Node],
+        edges: list[Edge],
         state_type: type,
         entry_point: str,
     ) -> None:
@@ -172,7 +166,7 @@ class CompiledGraph(Generic[StateType]):
         self._edges = edges
         self._state_type = state_type
         self._entry_point = entry_point
-        self._adjacency: Dict[str, List[Edge]] = {}
+        self._adjacency: dict[str, list[Edge]] = {}
         self._build_adjacency()
 
     def _build_adjacency(self) -> None:
@@ -182,7 +176,7 @@ class CompiledGraph(Generic[StateType]):
                 self._adjacency[edge.source] = []
             self._adjacency[edge.source].append(edge)
 
-    def _get_next_nodes(self, current: str, state: Dict[str, Any]) -> List[str]:
+    def _get_next_nodes(self, current: str, state: dict[str, Any]) -> list[str]:
         """根据边和条件确定下一个要执行的节点.
 
         对于普通边，直接返回目标节点；
@@ -194,21 +188,17 @@ class CompiledGraph(Generic[StateType]):
         for edge in edges:
             if edge.edge_type == EdgeType.NORMAL:
                 next_nodes.append(edge.target)
-            elif edge.edge_type == EdgeType.CONDITIONAL:
-                if edge.condition:
-                    result = edge.condition(state)
-                    if edge.condition_map:
-                        target = edge.condition_map.get(result, result)
-                    else:
-                        target = result
-                    if target != END:
-                        next_nodes.append(target)
-                    elif target == END:
-                        next_nodes.append(END)
+            elif edge.edge_type == EdgeType.CONDITIONAL and edge.condition:
+                result = edge.condition(state)
+                target = edge.condition_map.get(result, result) if edge.condition_map else result
+                if target != END:
+                    next_nodes.append(target)
+                elif target == END:
+                    next_nodes.append(END)
 
         return next_nodes
 
-    async def _execute_node(self, node_name: str, state: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_node(self, node_name: str, state: dict[str, Any]) -> dict[str, Any]:
         """执行单个节点并返回状态更新."""
         if node_name == END:
             return {}
@@ -225,16 +215,16 @@ class CompiledGraph(Generic[StateType]):
 
         return result if result else {}
 
-    def _get_start_nodes(self) -> List[str]:
+    def _get_start_nodes(self) -> list[str]:
         """获取从 START 连接的所有起始节点."""
         start_edges = self._adjacency.get(START, [])
         return [e.target for e in start_edges if e.edge_type == EdgeType.NORMAL]
 
     async def invoke(
         self,
-        initial_state: Dict[str, Any],
-        config: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        initial_state: dict[str, Any],
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """执行图并返回最终状态.
 
         执行流程:
@@ -253,7 +243,7 @@ class CompiledGraph(Generic[StateType]):
         state = dict(initial_state)
         start_nodes = self._get_start_nodes()
         current_nodes = start_nodes if start_nodes else [self._entry_point]
-        visited: Set[str] = set()
+        visited: set[str] = set()
         max_iterations = config.get("max_iterations", 100) if config else 100
         iteration = 0
 
@@ -286,7 +276,7 @@ class CompiledGraph(Generic[StateType]):
                 visited.update(executable)
 
                 # 收集所有后继节点
-                next_set: Set[str] = set()
+                next_set: set[str] = set()
                 for node_name in executable:
                     next_set.update(self._get_next_nodes(node_name, state))
                 current_nodes = list(next_set)
@@ -298,8 +288,8 @@ class CompiledGraph(Generic[StateType]):
 
     async def stream(
         self,
-        initial_state: Dict[str, Any],
-        config: Optional[Dict[str, Any]] = None,
+        initial_state: dict[str, Any],
+        config: dict[str, Any] | None = None,
     ):
         """流式执行图，逐步产出节点执行事件.
 
@@ -318,7 +308,7 @@ class CompiledGraph(Generic[StateType]):
         state = dict(initial_state)
         start_nodes = self._get_start_nodes()
         current_nodes = start_nodes if start_nodes else [self._entry_point]
-        visited: Set[str] = set()
+        visited: set[str] = set()
         max_iterations = config.get("max_iterations", 100) if config else 100
         iteration = 0
 
@@ -344,14 +334,14 @@ class CompiledGraph(Generic[StateType]):
                     "state": dict(state),
                 }
 
-            next_set: Set[str] = set()
+            next_set: set[str] = set()
             for node_name in executable:
                 next_set.update(self._get_next_nodes(node_name, state))
             current_nodes = list(next_set)
 
         yield {"type": "done", "state": dict(state)}
 
-    def get_graph_structure(self) -> Dict[str, Any]:
+    def get_graph_structure(self) -> dict[str, Any]:
         """获取图结构用于可视化."""
         return {
             "nodes": list(self._nodes.keys()),
@@ -387,15 +377,15 @@ class StateGraph(Generic[StateType]):
             state_type: 定义状态模式的 TypedDict 类
         """
         self._state_type = state_type
-        self._nodes: Dict[str, Node] = {}
-        self._edges: List[Edge] = []
-        self._entry_point: Optional[str] = None
+        self._nodes: dict[str, Node] = {}
+        self._edges: list[Edge] = []
+        self._entry_point: str | None = None
 
     def add_node(
         self,
-        name: Union[str, NodeFunc],
-        func: Optional[NodeFunc] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        name: str | NodeFunc,
+        func: NodeFunc | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> "StateGraph[StateType]":
         """添加节点到图.
 
@@ -447,11 +437,13 @@ class StateGraph(Generic[StateType]):
         if source == START:
             self._entry_point = target
 
-        self._edges.append(Edge(
-            source=source,
-            target=target,
-            edge_type=EdgeType.NORMAL,
-        ))
+        self._edges.append(
+            Edge(
+                source=source,
+                target=target,
+                edge_type=EdgeType.NORMAL,
+            )
+        )
 
         return self
 
@@ -459,7 +451,7 @@ class StateGraph(Generic[StateType]):
         self,
         source: str,
         condition: ConditionFunc,
-        path_map: Optional[Union[Dict[str, str], List[str]]] = None,
+        path_map: dict[str, str] | list[str] | None = None,
     ) -> "StateGraph[StateType]":
         """添加条件边.
 
@@ -489,13 +481,15 @@ class StateGraph(Generic[StateType]):
         elif isinstance(path_map, dict):
             condition_map = path_map
 
-        self._edges.append(Edge(
-            source=source,
-            target="",
-            edge_type=EdgeType.CONDITIONAL,
-            condition=condition,
-            condition_map=condition_map,
-        ))
+        self._edges.append(
+            Edge(
+                source=source,
+                target="",
+                edge_type=EdgeType.CONDITIONAL,
+                condition=condition,
+                condition_map=condition_map,
+            )
+        )
 
         return self
 
@@ -529,7 +523,9 @@ class StateGraph(Generic[StateType]):
                     break
 
         if self._entry_point is None:
-            raise ValueError("No entry point defined. Use add_edge(START, 'node') or set_entry_point()")
+            raise ValueError(
+                "No entry point defined. Use add_edge(START, 'node') or set_entry_point()"
+            )
 
         if self._entry_point not in self._nodes and self._entry_point != END:
             raise ValueError(f"Entry point '{self._entry_point}' is not a valid node")
@@ -548,15 +544,16 @@ class StateGraph(Generic[StateType]):
             entry_point=self._entry_point,
         )
 
-    def get_nodes(self) -> List[str]:
+    def get_nodes(self) -> list[str]:
         """获取所有节点名称列表."""
         return list(self._nodes.keys())
 
-    def get_edges(self) -> List[Tuple[str, str]]:
+    def get_edges(self) -> list[tuple[str, str]]:
         """获取边列表，以 (源, 目标) 元组形式返回."""
         return [(e.source, e.target) for e in self._edges if e.edge_type == EdgeType.NORMAL]
 
 
 class GraphBuilder(StateGraph[StateType]):
     """StateGraph 的别名，用于兼容性."""
+
     pass

@@ -31,17 +31,16 @@
     # 恢复
     latest = await storage.load_latest("thread_123")
 """
+
 import json
 import os
-import time
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 from uuid import uuid4
 
-from omni_agent.schemas.message import Message, ToolCall, FunctionCall
+from omni_agent.schemas.message import FunctionCall, Message, ToolCall
 
 
 @dataclass
@@ -56,7 +55,7 @@ class Checkpoint:
     token_usage: dict[str, int]
     metadata: dict[str, Any]
     created_at: str
-    parent_id: Optional[str] = None
+    parent_id: str | None = None
 
     @classmethod
     def create(
@@ -66,11 +65,11 @@ class Checkpoint:
         step: int,
         status: str,
         messages: list[Message],
-        pending_tool_calls: Optional[list[ToolCall]] = None,
+        pending_tool_calls: list[ToolCall] | None = None,
         input_tokens: int = 0,
         output_tokens: int = 0,
-        metadata: Optional[dict[str, Any]] = None,
-        parent_id: Optional[str] = None,
+        metadata: dict[str, Any] | None = None,
+        parent_id: str | None = None,
     ) -> "Checkpoint":
         return cls(
             id=f"ckpt_{uuid4().hex[:12]}",
@@ -102,7 +101,7 @@ class Checkpoint:
                     "function": {
                         "name": tc.function.name,
                         "arguments": tc.function.arguments,
-                    }
+                    },
                 }
                 for tc in msg.tool_calls
             ]
@@ -120,7 +119,7 @@ class Checkpoint:
             "function": {
                 "name": tc.function.name,
                 "arguments": tc.function.arguments,
-            }
+            },
         }
 
     @staticmethod
@@ -134,7 +133,7 @@ class Checkpoint:
                     function=FunctionCall(
                         name=tc["function"]["name"],
                         arguments=tc["function"]["arguments"],
-                    )
+                    ),
                 )
                 for tc in data["tool_calls"]
             ]
@@ -160,33 +159,25 @@ class Checkpoint:
 
 @runtime_checkable
 class CheckpointStorage(Protocol):
+    async def save(self, checkpoint: Checkpoint) -> None: ...
 
-    async def save(self, checkpoint: Checkpoint) -> None:
-        ...
+    async def load(self, checkpoint_id: str) -> Checkpoint | None: ...
 
-    async def load(self, checkpoint_id: str) -> Optional[Checkpoint]:
-        ...
-
-    async def load_latest(self, thread_id: str) -> Optional[Checkpoint]:
-        ...
+    async def load_latest(self, thread_id: str) -> Checkpoint | None: ...
 
     async def list_checkpoints(
         self,
         thread_id: str,
         limit: int = 10,
-    ) -> list[Checkpoint]:
-        ...
+    ) -> list[Checkpoint]: ...
 
-    async def delete(self, checkpoint_id: str) -> bool:
-        ...
+    async def delete(self, checkpoint_id: str) -> bool: ...
 
-    async def delete_thread(self, thread_id: str) -> int:
-        ...
+    async def delete_thread(self, thread_id: str) -> int: ...
 
 
 class FileCheckpointStorage:
-
-    def __init__(self, base_dir: Optional[str] = None):
+    def __init__(self, base_dir: str | None = None):
         if base_dir is None:
             base_dir = os.path.expanduser("~/.omni-agent/checkpoints")
         self._base_dir = Path(base_dir)
@@ -206,18 +197,18 @@ class FileCheckpointStorage:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-    async def load(self, checkpoint_id: str) -> Optional[Checkpoint]:
+    async def load(self, checkpoint_id: str) -> Checkpoint | None:
         for thread_dir in self._base_dir.iterdir():
             if not thread_dir.is_dir():
                 continue
             path = thread_dir / f"{checkpoint_id}.json"
             if path.exists():
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     data = json.load(f)
                 return Checkpoint.from_dict(data)
         return None
 
-    async def load_latest(self, thread_id: str) -> Optional[Checkpoint]:
+    async def load_latest(self, thread_id: str) -> Checkpoint | None:
         thread_dir = self._get_thread_dir(thread_id)
         if not thread_dir.exists():
             return None
@@ -225,7 +216,7 @@ class FileCheckpointStorage:
         checkpoints = []
         for path in thread_dir.glob("ckpt_*.json"):
             try:
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     data = json.load(f)
                 checkpoints.append(Checkpoint.from_dict(data))
             except (json.JSONDecodeError, KeyError):
@@ -248,7 +239,7 @@ class FileCheckpointStorage:
         checkpoints = []
         for path in thread_dir.glob("ckpt_*.json"):
             try:
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     data = json.load(f)
                 checkpoints.append(Checkpoint.from_dict(data))
             except (json.JSONDecodeError, KeyError):
@@ -284,7 +275,6 @@ class FileCheckpointStorage:
 
 
 class MemoryCheckpointStorage:
-
     def __init__(self):
         self._checkpoints: dict[str, Checkpoint] = {}
         self._thread_index: dict[str, list[str]] = {}
@@ -295,10 +285,10 @@ class MemoryCheckpointStorage:
             self._thread_index[checkpoint.thread_id] = []
         self._thread_index[checkpoint.thread_id].append(checkpoint.id)
 
-    async def load(self, checkpoint_id: str) -> Optional[Checkpoint]:
+    async def load(self, checkpoint_id: str) -> Checkpoint | None:
         return self._checkpoints.get(checkpoint_id)
 
-    async def load_latest(self, thread_id: str) -> Optional[Checkpoint]:
+    async def load_latest(self, thread_id: str) -> Checkpoint | None:
         checkpoint_ids = self._thread_index.get(thread_id, [])
         if not checkpoint_ids:
             return None
@@ -326,8 +316,7 @@ class MemoryCheckpointStorage:
         checkpoint = self._checkpoints.pop(checkpoint_id)
         if checkpoint.thread_id in self._thread_index:
             self._thread_index[checkpoint.thread_id] = [
-                cid for cid in self._thread_index[checkpoint.thread_id]
-                if cid != checkpoint_id
+                cid for cid in self._thread_index[checkpoint.thread_id] if cid != checkpoint_id
             ]
         return True
 
@@ -344,7 +333,7 @@ class MemoryCheckpointStorage:
 @dataclass
 class CheckpointConfig:
     enabled: bool = True
-    storage: Optional[CheckpointStorage] = None
+    storage: CheckpointStorage | None = None
     save_on_tool_execution: bool = True
     save_on_user_input: bool = True
     save_on_step: bool = False

@@ -79,5 +79,6 @@ class TestEvalReport:
         report.save_json(path)
         assert path.exists()
         import json
+
         data = json.loads(path.read_text())
         assert data["summary"]["total"] == 1

@@ -23,24 +23,24 @@ from acp import (
     NewSessionResponse,
     PromptResponse,
     run_agent,
+    start_tool_call,
     text_block,
     update_agent_message,
     update_agent_thought,
-    start_tool_call,
     update_tool_call,
 )
 from acp.interfaces import Client
 from acp.schema import (
+    AudioContentBlock,
     ClientCapabilities,
+    EmbeddedResourceContentBlock,
     HttpMcpServer,
+    ImageContentBlock,
     Implementation,
     McpServerStdio,
+    ResourceContentBlock,
     SseMcpServer,
     TextContentBlock,
-    ImageContentBlock,
-    AudioContentBlock,
-    ResourceContentBlock,
-    EmbeddedResourceContentBlock,
 )
 
 from omni_agent.core.agent import Agent as OmniAgent
@@ -157,7 +157,9 @@ class OmniACPAgent(Agent):
             await self._setup_omni_agent()
 
         if not self._omni_agent:
-            error_chunk = update_agent_message(text_block("[Error: Agent not initialized, check LLM_API_KEY]"))
+            error_chunk = update_agent_message(
+                text_block("[Error: Agent not initialized, check LLM_API_KEY]")
+            )
             await self._conn.session_update(session_id=session_id, update=error_chunk)
             return PromptResponse(stop_reason="error")
 
@@ -222,9 +224,7 @@ class OmniACPAgent(Agent):
     ) -> str:
         parts = []
         for block in prompt:
-            if isinstance(block, TextContentBlock):
-                parts.append(block.text)
-            elif hasattr(block, "text"):
+            if isinstance(block, TextContentBlock) or hasattr(block, "text"):
                 parts.append(block.text)
         return " ".join(parts)
 
@@ -234,16 +234,11 @@ class OmniACPAgent(Agent):
 
 async def main():
     parser = argparse.ArgumentParser(description="Omni Agent ACP Server")
-    parser.add_argument(
-        "--workspace", "-w", type=str, default=None, help="Workspace directory"
-    )
+    parser.add_argument("--workspace", "-w", type=str, default=None, help="Workspace directory")
     args = parser.parse_args()
 
     workspace = args.workspace
-    if workspace:
-        workspace = str(Path(workspace).absolute())
-    else:
-        workspace = os.getcwd()
+    workspace = str(Path(workspace).absolute()) if workspace else os.getcwd()
 
     agent = OmniACPAgent(workspace_dir=workspace)
     await run_agent(agent)

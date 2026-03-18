@@ -1,10 +1,11 @@
 """工具列表端点。"""
+
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from omni_agent.core.agent import Agent
 from omni_agent.api.deps import get_agent
+from omni_agent.core.agent import Agent
 
 router = APIRouter()
 

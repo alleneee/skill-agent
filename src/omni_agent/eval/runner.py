@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from pathlib import Path
 from typing import Any
 
 from omni_agent.eval.config import EvalConfig
@@ -80,7 +79,7 @@ class EvalRunner:
                     output_tokens=output_tokens,
                 )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return EvalResult(
                 case_id=case.id,
                 grade=GradeResult.failure(reason="timeout"),
@@ -107,7 +106,9 @@ class EvalRunner:
                 status = "PASS" if result.passed else "FAIL"
                 logger.info(
                     "eval case %s: %s (%.1fs)",
-                    case.id, status, result.duration,
+                    case.id,
+                    status,
+                    result.duration,
                 )
                 return result
 

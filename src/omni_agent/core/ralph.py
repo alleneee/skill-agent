@@ -10,18 +10,21 @@ Ralph Loop 是一种迭代开发方法论，通过重复执行相同的 prompt�
     - ContextManager: 上下文管理协调器
     - CompletionDetector: 完成检测器
 """
+
 import json
 import re
 import time
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Coroutine, Optional
+from typing import Any
 from uuid import uuid4
 
 
 class ContextStrategy(Enum):
     """上下文管理策略."""
+
     ITERATION_BOUNDARY = "iteration_boundary"  # 迭代边界概括
     TOKEN_THRESHOLD = "token_threshold"  # Token 阈值触发
     TOOL_LEVEL_CACHE = "tool_level_cache"  # 工具级别缓存
@@ -30,6 +33,7 @@ class ContextStrategy(Enum):
 
 class CompletionCondition(Enum):
     """完成检测条件."""
+
     PROMISE_TAG = "promise_tag"  # Promise 标签检测
     MAX_ITERATIONS = "max_iterations"  # 最大迭代次数
     IDLE_THRESHOLD = "idle_threshold"  # 空闲阈值（无文件修改）
@@ -49,6 +53,7 @@ class RalphConfig:
         memory_dir: 工作记忆存储目录
         summarize_token_threshold: 触发摘要的 token 阈值
     """
+
     enabled: bool = False
     max_iterations: int = 20
     completion_promise: str = "TASK COMPLETE"
@@ -83,6 +88,7 @@ class CachedToolResult:
 
     同时保存完整内容和摘要，支持按需获取。
     """
+
     tool_call_id: str  # 工具调用 ID
     tool_name: str  # 工具名称
     arguments: dict[str, Any]  # 调用参数
@@ -123,10 +129,13 @@ class ToolResultCache:
         summary: str,
         iteration: int = 0,
     ) -> None:
-        if len(self._cache) >= self._max_size and tool_call_id not in self._cache:
-            if self._access_order:
-                oldest_id = self._access_order.pop(0)
-                self._cache.pop(oldest_id, None)
+        if (
+            len(self._cache) >= self._max_size
+            and tool_call_id not in self._cache
+            and self._access_order
+        ):
+            oldest_id = self._access_order.pop(0)
+            self._cache.pop(oldest_id, None)
 
         self._cache[tool_call_id] = CachedToolResult(
             tool_call_id=tool_call_id,
@@ -141,11 +150,11 @@ class ToolResultCache:
             self._access_order.remove(tool_call_id)
         self._access_order.append(tool_call_id)
 
-    def get_summary(self, tool_call_id: str) -> Optional[str]:
+    def get_summary(self, tool_call_id: str) -> str | None:
         result = self._cache.get(tool_call_id)
         return result.summary if result else None
 
-    def get_full_content(self, tool_call_id: str) -> Optional[str]:
+    def get_full_content(self, tool_call_id: str) -> str | None:
         result = self._cache.get(tool_call_id)
         if result and tool_call_id in self._access_order:
             self._access_order.remove(tool_call_id)
@@ -169,6 +178,7 @@ class ToolResultCache:
 @dataclass
 class MemoryEntry:
     """工作记忆条目."""
+
     key: str  # 条目键
     value: Any  # 条目值
     category: str  # 分类
@@ -182,6 +192,7 @@ class WorkingMemory:
     持久化到 workspace/.ralph/memory.json，跨迭代保留上下文。
     支持进度记录、发现、待办、决策、错误等分类。
     """
+
     CATEGORY_PROGRESS = "progress"  # 进度记录
     CATEGORY_FINDINGS = "findings"  # 发现/洞察
     CATEGORY_TODO = "todo"  # 待办事项
@@ -244,7 +255,7 @@ class WorkingMemory:
         )
         self._save()
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         entry = self._entries.get(key)
         return entry.value if entry else None
 
@@ -277,7 +288,7 @@ class WorkingMemory:
         key = f"decision_{self._current_iteration}_{uuid4().hex[:8]}"
         self.set_entry(key, {"decision": decision, "reason": reason}, self.CATEGORY_DECISIONS)
 
-    def add_error(self, error: str, context: Optional[str] = None) -> None:
+    def add_error(self, error: str, context: str | None = None) -> None:
         key = f"error_{self._current_iteration}_{uuid4().hex[:8]}"
         self.set_entry(key, {"error": error, "context": context}, self.CATEGORY_ERRORS)
 
@@ -312,12 +323,8 @@ class WorkingMemory:
             "total_entries": len(self._entries),
             "pending_todos": len(pending_todos),
             "completed_todos": len(completed_todos),
-            "recent_progress": [
-                e.value for e in self.get_by_category(self.CATEGORY_PROGRESS)[-5:]
-            ],
-            "recent_findings": [
-                e.value for e in self.get_by_category(self.CATEGORY_FINDINGS)[-5:]
-            ],
+            "recent_progress": [e.value for e in self.get_by_category(self.CATEGORY_PROGRESS)[-5:]],
+            "recent_findings": [e.value for e in self.get_by_category(self.CATEGORY_FINDINGS)[-5:]],
             "errors": [e.value for e in self.get_by_category(self.CATEGORY_ERRORS)],
         }
 
@@ -342,7 +349,8 @@ class WorkingMemory:
                 lines.append(f"- {f}")
 
         pending = [
-            e for e in self.get_by_category(self.CATEGORY_TODO)
+            e
+            for e in self.get_by_category(self.CATEGORY_TODO)
             if not e.value.get("completed", False)
         ]
         if pending:
@@ -368,8 +376,9 @@ class WorkingMemory:
 @dataclass
 class CompletionResult:
     """完成检测结果."""
+
     completed: bool  # 是否完成
-    reason: Optional[CompletionCondition] = None  # 完成原因
+    reason: CompletionCondition | None = None  # 完成原因
     message: str = ""  # 详细消息
     confidence: float = 1.0  # 置信度
 
@@ -379,6 +388,7 @@ class CompletionDetector:
 
     支持多条件检测：Promise 标签、最大迭代次数、空闲阈值。
     """
+
     PROMISE_PATTERN = re.compile(r"<promise>(.*?)</promise>", re.IGNORECASE | re.DOTALL)
 
     def __init__(self, config: RalphConfig) -> None:
@@ -405,13 +415,15 @@ class CompletionDetector:
                         message=f"Completion promise detected: {promise_text}",
                     )
 
-        if CompletionCondition.MAX_ITERATIONS in conditions:
-            if iteration >= self._config.max_iterations:
-                return CompletionResult(
-                    completed=True,
-                    reason=CompletionCondition.MAX_ITERATIONS,
-                    message=f"Max iterations ({self._config.max_iterations}) reached",
-                )
+        if (
+            CompletionCondition.MAX_ITERATIONS in conditions
+            and iteration >= self._config.max_iterations
+        ):
+            return CompletionResult(
+                completed=True,
+                reason=CompletionCondition.MAX_ITERATIONS,
+                message=f"Max iterations ({self._config.max_iterations}) reached",
+            )
 
         if CompletionCondition.IDLE_THRESHOLD in conditions:
             if files_modified == self._last_files_modified:
@@ -446,7 +458,7 @@ class ContextManager:
         config: RalphConfig,
         tool_cache: ToolResultCache,
         working_memory: WorkingMemory,
-        summarize_fn: Optional[Callable[[str], Coroutine[Any, Any, str]]] = None,
+        summarize_fn: Callable[[str], Coroutine[Any, Any, str]] | None = None,
     ) -> None:
         self._config = config
         self._tool_cache = tool_cache
@@ -535,7 +547,7 @@ class ContextManager:
 
         return "\n".join(parts)
 
-    def get_full_tool_result(self, tool_call_id: str) -> Optional[str]:
+    def get_full_tool_result(self, tool_call_id: str) -> str | None:
         return self._tool_cache.get_full_content(tool_call_id)
 
     def clear(self) -> None:
@@ -546,9 +558,9 @@ class ContextManager:
 @dataclass
 class RalphState:
     """Ralph 执行状态.
-    
+
     跟踪 Ralph 循环的运行时状态，包括迭代次数、完成状态和修改的文件。
-    
+
     Attributes:
         iteration: 当前迭代次数
         started_at: 开始时间戳
@@ -557,10 +569,11 @@ class RalphState:
         total_steps: 总执行步骤数
         files_modified: 已修改的文件路径集合
     """
+
     iteration: int = 0
     started_at: float = field(default_factory=time.time)
     completed: bool = False
-    completion_reason: Optional[str] = None
+    completion_reason: str | None = None
     total_steps: int = 0
     files_modified: set[str] = field(default_factory=set)
 
@@ -577,15 +590,15 @@ class RalphState:
 
 class RalphLoop:
     """Ralph 迭代循环控制器.
-    
+
     协调 Ralph 模式的核心组件，管理迭代生命周期、工具结果处理和完成检测。
-    
+
     核心职责:
         1. 管理迭代状态和生命周期
         2. 协调 ToolResultCache、WorkingMemory、ContextManager
         3. 处理工具执行结果并跟踪文件修改
         4. 检测任务完成条件
-    
+
     Attributes:
         config: Ralph 配置
         state: 当前执行状态
@@ -593,11 +606,12 @@ class RalphLoop:
         working_memory: 工作记忆
         tool_cache: 工具结果缓存
     """
+
     def __init__(
         self,
         config: RalphConfig,
         workspace_dir: Path,
-        summarize_fn: Optional[Callable[[str], Coroutine[Any, Any, str]]] = None,
+        summarize_fn: Callable[[str], Coroutine[Any, Any, str]] | None = None,
     ) -> None:
         self._config = config
         self._workspace = workspace_dir

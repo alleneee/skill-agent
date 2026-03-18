@@ -9,12 +9,10 @@
 """
 
 import asyncio
-import json
 import os
 import tempfile
 import time
 import uuid
-from pathlib import Path
 
 import pytest
 
@@ -29,7 +27,6 @@ from omni_agent.core.session_manager import (
     UnifiedTeamSessionManager,
 )
 from omni_agent.core.session_storage import FileStorage
-
 
 # ============================================================================
 # Fixtures
@@ -420,15 +417,9 @@ class TestFileStorage:
         storage = FileStorage(temp_storage_path)
 
         # 保存一个 "旧" 会话
-        await storage.save_session("old", {
-            "value": 1,
-            "updated_at": time.time() - (8 * 86400)
-        })
+        await storage.save_session("old", {"value": 1, "updated_at": time.time() - (8 * 86400)})
         # 保存一个新会话
-        await storage.save_session("new", {
-            "value": 2,
-            "updated_at": time.time()
-        })
+        await storage.save_session("new", {"value": 2, "updated_at": time.time()})
 
         cleaned = await storage.cleanup_expired(7 * 86400)
         assert cleaned == 1
@@ -449,10 +440,7 @@ class TestUnifiedAgentSessionManager:
     @pytest.mark.asyncio
     async def test_file_backend(self, temp_storage_path):
         """测试文件后端."""
-        manager = UnifiedAgentSessionManager(
-            backend="file",
-            storage_path=temp_storage_path
-        )
+        manager = UnifiedAgentSessionManager(backend="file", storage_path=temp_storage_path)
 
         try:
             session = await manager.get_session("test-session", "test-agents")
@@ -478,14 +466,11 @@ class TestUnifiedAgentSessionManager:
     @pytest.mark.asyncio
     async def test_delete_session(self, temp_storage_path):
         """测试删除会话."""
-        manager = UnifiedAgentSessionManager(
-            backend="file",
-            storage_path=temp_storage_path
-        )
+        manager = UnifiedAgentSessionManager(backend="file", storage_path=temp_storage_path)
 
         try:
             # 创建会话并添加运行记录以确保它被保存到存储
-            session = await manager.get_session("test-session", "test-agents")
+            await manager.get_session("test-session", "test-agents")
             run = AgentRunRecord(
                 run_id=str(uuid.uuid4()),
                 task="Test task",
@@ -496,7 +481,7 @@ class TestUnifiedAgentSessionManager:
                 metadata={},
             )
             await manager.add_run("test-session", run)
-            
+
             # 现在删除应该成功
             assert await manager.delete_session("test-session") is True
             # 再次删除应该失败（已不存在）
@@ -507,10 +492,7 @@ class TestUnifiedAgentSessionManager:
     @pytest.mark.asyncio
     async def test_cleanup_old_sessions(self, temp_storage_path):
         """测试清理过期会话."""
-        manager = UnifiedAgentSessionManager(
-            backend="file",
-            storage_path=temp_storage_path
-        )
+        manager = UnifiedAgentSessionManager(backend="file", storage_path=temp_storage_path)
 
         try:
             # 创建会话并手动设置为过期
@@ -518,8 +500,7 @@ class TestUnifiedAgentSessionManager:
             session.updated_at = time.time() - (8 * 86400)
             # 保存更新
             await manager._storage.save_session(
-                "old-session",
-                manager._serialize_agent_session(session)
+                "old-session", manager._serialize_agent_session(session)
             )
 
             cleaned = await manager.cleanup_old_sessions(max_age_days=7)
@@ -539,10 +520,7 @@ class TestUnifiedTeamSessionManager:
     @pytest.mark.asyncio
     async def test_file_backend(self, temp_storage_path):
         """测试文件后端."""
-        manager = UnifiedTeamSessionManager(
-            backend="file",
-            storage_path=temp_storage_path
-        )
+        manager = UnifiedTeamSessionManager(backend="file", storage_path=temp_storage_path)
 
         try:
             session = await manager.get_session("test-session", "Test Team")
@@ -580,10 +558,7 @@ class TestSessionIntegration:
     @pytest.mark.asyncio
     async def test_multi_round_conversation(self, temp_storage_path):
         """测试多轮对话场景."""
-        manager = UnifiedAgentSessionManager(
-            backend="file",
-            storage_path=temp_storage_path
-        )
+        manager = UnifiedAgentSessionManager(backend="file", storage_path=temp_storage_path)
 
         try:
             session_id = "conversation-test"
@@ -629,10 +604,7 @@ class TestSessionIntegration:
         session_id = "persist-test"
 
         # 第一个实例：创建会话
-        manager1 = UnifiedAgentSessionManager(
-            backend="file",
-            storage_path=temp_storage_path
-        )
+        manager1 = UnifiedAgentSessionManager(backend="file", storage_path=temp_storage_path)
         try:
             await manager1.get_session(session_id, "test-agents")
             run = AgentRunRecord(
@@ -649,10 +621,7 @@ class TestSessionIntegration:
             await manager1.close()
 
         # 第二个实例：加载并继续
-        manager2 = UnifiedAgentSessionManager(
-            backend="file",
-            storage_path=temp_storage_path
-        )
+        manager2 = UnifiedAgentSessionManager(backend="file", storage_path=temp_storage_path)
         try:
             session = await manager2.get_session(session_id, "test-agents")
             assert len(session.runs) == 1
@@ -673,10 +642,7 @@ class TestSessionIntegration:
             await manager2.close()
 
         # 第三个实例：验证所有数据
-        manager3 = UnifiedAgentSessionManager(
-            backend="file",
-            storage_path=temp_storage_path
-        )
+        manager3 = UnifiedAgentSessionManager(backend="file", storage_path=temp_storage_path)
         try:
             session = await manager3.get_session(session_id, "test-agents")
             assert len(session.runs) == 2
@@ -695,10 +661,7 @@ class TestExtendedIntegration:
     @pytest.mark.asyncio
     async def test_concurrent_sessions(self, temp_storage_path):
         """测试并发多会话场景."""
-        manager = UnifiedAgentSessionManager(
-            backend="file",
-            storage_path=temp_storage_path
-        )
+        manager = UnifiedAgentSessionManager(backend="file", storage_path=temp_storage_path)
 
         try:
             # 模拟多个用户同时使用
@@ -739,10 +702,7 @@ class TestExtendedIntegration:
     @pytest.mark.asyncio
     async def test_team_workflow(self, temp_storage_path):
         """测试 Team 工作流场景."""
-        manager = UnifiedTeamSessionManager(
-            backend="file",
-            storage_path=temp_storage_path
-        )
+        manager = UnifiedTeamSessionManager(backend="file", storage_path=temp_storage_path)
 
         try:
             session_id = "team-workflow"
@@ -833,10 +793,7 @@ class TestExtendedIntegration:
     @pytest.mark.asyncio
     async def test_session_state_management(self, temp_storage_path):
         """测试会话状态管理."""
-        manager = UnifiedAgentSessionManager(
-            backend="file",
-            storage_path=temp_storage_path
-        )
+        manager = UnifiedAgentSessionManager(backend="file", storage_path=temp_storage_path)
 
         try:
             session_id = "state-test"
@@ -859,10 +816,7 @@ class TestExtendedIntegration:
             await manager.add_run(session_id, run)
 
             # 重新加载并验证状态
-            manager2 = UnifiedAgentSessionManager(
-                backend="file",
-                storage_path=temp_storage_path
-            )
+            manager2 = UnifiedAgentSessionManager(backend="file", storage_path=temp_storage_path)
             try:
                 session2 = await manager2.get_session(session_id, "assistant")
                 assert session2.state["user_preferences"]["language"] == "zh"
@@ -875,10 +829,7 @@ class TestExtendedIntegration:
     @pytest.mark.asyncio
     async def test_history_context_truncation(self, temp_storage_path):
         """测试历史上下文截断."""
-        manager = UnifiedAgentSessionManager(
-            backend="file",
-            storage_path=temp_storage_path
-        )
+        manager = UnifiedAgentSessionManager(backend="file", storage_path=temp_storage_path)
 
         try:
             session_id = "truncation-test"
@@ -909,10 +860,7 @@ class TestExtendedIntegration:
     @pytest.mark.asyncio
     async def test_max_chars_limit(self, temp_storage_path):
         """测试最大字符数限制."""
-        manager = UnifiedAgentSessionManager(
-            backend="file",
-            storage_path=temp_storage_path
-        )
+        manager = UnifiedAgentSessionManager(backend="file", storage_path=temp_storage_path)
 
         try:
             session_id = "max-chars-test"
@@ -932,7 +880,7 @@ class TestExtendedIntegration:
                 await manager.add_run(session_id, run)
 
             session = await manager.get_session(session_id, "assistant")
-            
+
             # 限制最大字符数
             context = session.get_history_context(num_runs=10, max_chars=500)
             assert len(context) <= 600  # 允许一些余量
@@ -942,10 +890,7 @@ class TestExtendedIntegration:
     @pytest.mark.asyncio
     async def test_error_recovery(self, temp_storage_path):
         """测试错误恢复场景."""
-        manager = UnifiedAgentSessionManager(
-            backend="file",
-            storage_path=temp_storage_path
-        )
+        manager = UnifiedAgentSessionManager(backend="file", storage_path=temp_storage_path)
 
         try:
             session_id = "error-test"

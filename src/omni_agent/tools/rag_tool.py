@@ -1,4 +1,5 @@
 """RAG 工具，用于搜索知识库。"""
+
 from typing import Any
 
 from omni_agent.core.config import settings

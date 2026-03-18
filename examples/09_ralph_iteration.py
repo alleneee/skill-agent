@@ -23,8 +23,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from omni_agent.core import Agent, LLMClient, RalphConfig, WorkspaceManager
-from omni_agent.tools.file_tools import ReadTool, WriteTool, EditTool
 from omni_agent.tools.bash_tool import BashTool
+from omni_agent.tools.file_tools import EditTool, ReadTool, WriteTool
 
 
 async def main():
@@ -82,17 +82,17 @@ async def main():
 
     status = agent.get_ralph_status()
     if status:
-        print(f"\n--- Ralph 状态 ---")
+        print("\n--- Ralph 状态 ---")
         print(f"迭代次数: {status['state']['iteration']}")
         print(f"是否完成: {status['state']['completed']}")
         print(f"完成原因: {status['state']['completion_reason']}")
         print(f"修改文件数: {status['memory_summary']['files_modified_count']}")
-        if status['memory_summary']['recent_progress']:
+        if status["memory_summary"]["recent_progress"]:
             print(f"进度记录: {status['memory_summary']['recent_progress']}")
 
-    print(f"\n--- 生成的文件 ---")
+    print("\n--- 生成的文件 ---")
     for f in workspace_path.iterdir():
-        if f.is_file() and f.suffix == '.py':
+        if f.is_file() and f.suffix == ".py":
             print(f"\n[{f.name}]")
             content = f.read_text()
             print(content[:300] if len(content) > 300 else content)

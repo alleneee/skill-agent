@@ -10,7 +10,7 @@ Graph 执行引擎基础示例
 import asyncio
 from typing import TypedDict
 
-from omni_agent.core import StateGraph, START, END
+from omni_agent.core import END, START, StateGraph
 
 
 class SimpleState(TypedDict):

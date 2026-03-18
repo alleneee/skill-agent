@@ -33,7 +33,8 @@ class TestOutcomeGrader:
     async def test_file_exists_pass(self, grader, tmp_path):
         (tmp_path / "hello.py").write_text("pass")
         case = EvalCase(
-            id="t", task="t",
+            id="t",
+            task="t",
             grading={"checks": [{"file_exists": "hello.py"}]},
         )
         result = await grader.grade(case, tmp_path, "")
@@ -41,7 +42,8 @@ class TestOutcomeGrader:
 
     async def test_file_exists_fail(self, grader, tmp_path):
         case = EvalCase(
-            id="t", task="t",
+            id="t",
+            task="t",
             grading={"checks": [{"file_exists": "missing.py"}]},
         )
         result = await grader.grade(case, tmp_path, "")
@@ -50,7 +52,8 @@ class TestOutcomeGrader:
     async def test_file_contains_pass(self, grader, tmp_path):
         (tmp_path / "app.py").write_text("def hello():\n    return 'world'")
         case = EvalCase(
-            id="t", task="t",
+            id="t",
+            task="t",
             grading={"checks": [{"file_contains": ["app.py", "def hello"]}]},
         )
         result = await grader.grade(case, tmp_path, "")
@@ -59,7 +62,8 @@ class TestOutcomeGrader:
     async def test_file_contains_fail(self, grader, tmp_path):
         (tmp_path / "app.py").write_text("def goodbye():\n    pass")
         case = EvalCase(
-            id="t", task="t",
+            id="t",
+            task="t",
             grading={"checks": [{"file_contains": ["app.py", "def hello"]}]},
         )
         result = await grader.grade(case, tmp_path, "")
@@ -68,7 +72,8 @@ class TestOutcomeGrader:
     async def test_file_not_contains_pass(self, grader, tmp_path):
         (tmp_path / "cfg.py").write_text("DEBUG = True")
         case = EvalCase(
-            id="t", task="t",
+            id="t",
+            task="t",
             grading={"checks": [{"file_not_contains": ["cfg.py", "DEBUG = False"]}]},
         )
         result = await grader.grade(case, tmp_path, "")
@@ -76,7 +81,8 @@ class TestOutcomeGrader:
 
     async def test_result_contains_pass(self, grader, tmp_path):
         case = EvalCase(
-            id="t", task="t",
+            id="t",
+            task="t",
             grading={"checks": [{"result_contains": "success"}]},
         )
         result = await grader.grade(case, tmp_path, "operation success done")
@@ -84,7 +90,8 @@ class TestOutcomeGrader:
 
     async def test_result_matches_pass(self, grader, tmp_path):
         case = EvalCase(
-            id="t", task="t",
+            id="t",
+            task="t",
             grading={"checks": [{"result_matches": r"\d+ files?"}]},
         )
         result = await grader.grade(case, tmp_path, "found 3 files")
@@ -93,7 +100,8 @@ class TestOutcomeGrader:
     async def test_multiple_checks_all_pass(self, grader, tmp_path):
         (tmp_path / "out.txt").write_text("hello world")
         case = EvalCase(
-            id="t", task="t",
+            id="t",
+            task="t",
             grading={
                 "checks": [
                     {"file_exists": "out.txt"},
@@ -108,7 +116,8 @@ class TestOutcomeGrader:
     async def test_multiple_checks_partial_fail(self, grader, tmp_path):
         (tmp_path / "out.txt").write_text("hello world")
         case = EvalCase(
-            id="t", task="t",
+            id="t",
+            task="t",
             grading={
                 "checks": [
                     {"file_exists": "out.txt"},

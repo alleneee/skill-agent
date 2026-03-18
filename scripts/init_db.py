@@ -107,7 +107,7 @@ async def init_schema() -> None:
         # Check if there are any rows first (IVFFlat needs data)
         row_count = await conn.fetchval("SELECT COUNT(*) FROM chunks")
         if row_count > 0:
-            await conn.execute(f"""
+            await conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_chunks_embedding
                 ON chunks USING ivfflat (embedding vector_cosine_ops)
                 WITH (lists = 100)

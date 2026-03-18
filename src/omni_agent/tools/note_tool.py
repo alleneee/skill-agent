@@ -75,7 +75,7 @@ class SessionNoteTool(Tool):
             return []
 
         try:
-            return json.loads(self.memory_file.read_text(encoding='utf-8'))
+            return json.loads(self.memory_file.read_text(encoding="utf-8"))
         except Exception:
             return []
 
@@ -87,8 +87,7 @@ class SessionNoteTool(Tool):
         # 在实际保存时确保父目录存在
         self.memory_file.parent.mkdir(parents=True, exist_ok=True)
         self.memory_file.write_text(
-            json.dumps(notes, indent=2, ensure_ascii=False),
-            encoding='utf-8'
+            json.dumps(notes, indent=2, ensure_ascii=False), encoding="utf-8"
         )
 
     async def execute(self, content: str, category: str = "general") -> ToolResult:
@@ -179,7 +178,7 @@ class RecallNoteTool(Tool):
                     content="尚未记录任何笔记。",
                 )
 
-            notes = json.loads(self.memory_file.read_text(encoding='utf-8'))
+            notes = json.loads(self.memory_file.read_text(encoding="utf-8"))
 
             if not notes:
                 return ToolResult(
@@ -202,9 +201,7 @@ class RecallNoteTool(Tool):
                 timestamp = note.get("timestamp", "未知时间")
                 cat = note.get("category", "general")
                 content = note.get("content", "")
-                formatted.append(
-                    f"{idx}. [{cat}] {content}\n   (记录于 {timestamp})"
-                )
+                formatted.append(f"{idx}. [{cat}] {content}\n   (记录于 {timestamp})")
 
             result = "已记录的笔记:\n" + "\n".join(formatted)
 

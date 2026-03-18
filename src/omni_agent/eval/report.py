@@ -100,9 +100,9 @@ class EvalReport:
 
     def to_terminal(self) -> str:
         lines = []
-        lines.append(f"\n{'='*60}")
+        lines.append(f"\n{'=' * 60}")
         lines.append(f"Eval Report: {self.dataset_name}")
-        lines.append(f"{'='*60}")
+        lines.append(f"{'=' * 60}")
 
         for r in self.results:
             status = "PASS" if r.passed else "FAIL"
@@ -115,7 +115,7 @@ class EvalReport:
                 reason = r.error or r.grade.reason
                 lines.append(f"         -> {reason}")
 
-        lines.append(f"{'-'*60}")
+        lines.append(f"{'-' * 60}")
         s = self.summary()
         lines.append(
             f"  Accuracy: {s['accuracy']}  "
@@ -123,7 +123,7 @@ class EvalReport:
             f"Avg: {s['avg_duration']}  "
             f"Tokens: {s['total_tokens']}"
         )
-        lines.append(f"{'='*60}\n")
+        lines.append(f"{'=' * 60}\n")
         return "\n".join(lines)
 
     def save_json(self, path: Path) -> None:
@@ -149,11 +149,11 @@ class EvalReport:
         prev_results = {r["case_id"]: r for r in previous["results"]}
 
         lines = [
-            f"\n{'='*60}",
+            f"\n{'=' * 60}",
             "Eval Comparison",
-            f"{'='*60}",
+            f"{'=' * 60}",
             f"  {'Metric':<20s} {'Previous':>12s} {'Current':>12s} {'Delta':>10s}",
-            f"  {'-'*54}",
+            f"  {'-' * 54}",
         ]
 
         def _delta(curr_str: str, prev_str: str) -> str:
@@ -194,5 +194,5 @@ class EvalReport:
         if not regressions and not improvements:
             lines.append("\n  No regressions or improvements detected.")
 
-        lines.append(f"{'='*60}\n")
+        lines.append(f"{'=' * 60}\n")
         return "\n".join(lines)

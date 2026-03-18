@@ -130,7 +130,9 @@ async def main():
     except Exception as e:
         print(f"Basic usage failed: {e}")
         print("Ensure sandbox container is running:")
-        print("  docker run -d --security-opt seccomp=unconfined -p 8080:8080 ghcr.io/agents-infra/sandbox:latest")
+        print(
+            "  docker run -d --security-opt seccomp=unconfined -p 8080:8080 ghcr.io/agents-infra/sandbox:latest"
+        )
         return
 
     try:

@@ -1,6 +1,7 @@
 """
 Omni Agent 的日志工具
 """
+
 import logging
 import sys
 
@@ -18,8 +19,7 @@ if not logger.handlers:
 
     # 创建格式器
     formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
 
     # 设置格式器

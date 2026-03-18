@@ -1,7 +1,7 @@
 """CLI 模式的会话处理。"""
+
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from omni_agent.core.config import settings
 
@@ -11,7 +11,7 @@ class CLISessionHandler:
 
     def __init__(
         self,
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
         auto_save: bool = True,
     ):
         """Initialize session handler.
@@ -22,7 +22,7 @@ class CLISessionHandler:
         """
         self.session_id = session_id or f"cli-{uuid.uuid4().hex[:8]}"
         self.auto_save = auto_save
-        self._manager: Optional["UnifiedAgentSessionManager"] = None
+        self._manager: UnifiedAgentSessionManager | None = None
         self._run_count = 0
         self._start_time = datetime.now()
         self._tool_calls_count = 0
@@ -42,7 +42,9 @@ class CLISessionHandler:
                 redis_port=settings.SESSION_REDIS_PORT,
                 redis_db=settings.SESSION_REDIS_DB,
                 redis_password=settings.SESSION_REDIS_PASSWORD or None,
-                postgres_dsn=settings.postgres_dsn if settings.SESSION_BACKEND == "postgres" else None,
+                postgres_dsn=settings.postgres_dsn
+                if settings.SESSION_BACKEND == "postgres"
+                else None,
                 postgres_table=settings.SESSION_POSTGRES_TABLE,
                 ttl_seconds=settings.SESSION_MAX_AGE_DAYS * 86400,
             )

@@ -2,7 +2,7 @@
 
 from abc import ABC
 from dataclasses import dataclass, field
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from omni_agent.core.agent import AgentState
@@ -14,6 +14,7 @@ class HookContext:
 
     传递给 AgentHook 的上下文信息，包含当前状态和元数据。
     """
+
     state: "AgentState"
     step: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -25,6 +26,7 @@ class AgentHook(ABC):
     定义执行前、执行中、执行后的扩展点，允许自定义行为注入。
     通过 priority 属性控制多个钩子的执行顺序。
     """
+
     priority: int = 100
 
     async def before_run(self, ctx: HookContext) -> None:

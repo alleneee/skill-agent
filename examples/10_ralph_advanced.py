@@ -19,9 +19,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from omni_agent.core import Agent, LLMClient, RalphConfig, WorkspaceManager
-from omni_agent.core.ralph import ContextStrategy, CompletionCondition
-from omni_agent.tools.file_tools import ReadTool, WriteTool, EditTool
+from omni_agent.core.ralph import CompletionCondition, ContextStrategy
 from omni_agent.tools.bash_tool import BashTool
+from omni_agent.tools.file_tools import EditTool, ReadTool, WriteTool
 
 
 async def example_custom_config():
@@ -123,7 +123,9 @@ async def example_stream_execution():
         elif event_type == "ralph_completion":
             print(f"  [Ralph完成] 原因={event['data']['reason']}")
         elif event_type == "tool_result":
-            print(f"  [工具结果] {event['data']['tool']}: {'成功' if event['data']['success'] else '失败'}")
+            print(
+                f"  [工具结果] {event['data']['tool']}: {'成功' if event['data']['success'] else '失败'}"
+            )
 
     status = agent.get_ralph_status()
     if status:
@@ -173,15 +175,15 @@ async def example_status_and_memory():
     print(f"  完成原因: {status['state']['completion_reason']}")
 
     print("\n工作记忆摘要:")
-    memory = status['memory_summary']
+    memory = status["memory_summary"]
     print(f"  修改文件数: {memory['files_modified_count']}")
     print(f"  待办事项: {memory['pending_todos']}")
     print(f"  已完成事项: {memory['completed_todos']}")
-    if memory['recent_progress']:
+    if memory["recent_progress"]:
         print(f"  最近进度: {memory['recent_progress']}")
 
     print("\n配置:")
-    config = status['config']
+    config = status["config"]
     print(f"  最大迭代: {config['max_iterations']}")
     print(f"  空闲阈值: {config['idle_threshold']}")
     print(f"  完成标记: {config['completion_promise']}")

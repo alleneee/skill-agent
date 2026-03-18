@@ -10,23 +10,23 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from PIL import Image, ImageDraw
 import numpy as np
-from core.gif_builder import GIFBuilder
-from core.frame_composer import create_blank_frame, draw_emoji_enhanced
 from core.easing import interpolate
+from core.frame_composer import create_blank_frame, draw_emoji_enhanced
+from core.gif_builder import GIFBuilder
+from PIL import Image
 
 
 def create_fade_animation(
-    object_type: str = 'emoji',
+    object_type: str = "emoji",
     object_data: dict | None = None,
     num_frames: int = 30,
-    fade_type: str = 'in',  # 'in', 'out', 'in_out', 'blink'
-    easing: str = 'ease_in_out',
+    fade_type: str = "in",  # 'in', 'out', 'in_out', 'blink'
+    easing: str = "ease_in_out",
     center_pos: tuple[int, int] = (240, 240),
     frame_width: int = 480,
     frame_height: int = 480,
-    bg_color: tuple[int, int, int] = (255, 255, 255)
+    bg_color: tuple[int, int, int] = (255, 255, 255),
 ) -> list[Image.Image]:
     """
     Create fade animation.
@@ -48,29 +48,28 @@ def create_fade_animation(
     frames = []
 
     # Default object data
-    if object_data is None:
-        if object_type == 'emoji':
-            object_data = {'emoji': '✨', 'size': 100}
+    if object_data is None and object_type == "emoji":
+        object_data = {"emoji": "✨", "size": 100}
 
     for i in range(num_frames):
         t = i / (num_frames - 1) if num_frames > 1 else 0
 
         # Calculate opacity based on fade type
-        if fade_type == 'in':
+        if fade_type == "in":
             opacity = interpolate(0, 1, t, easing)
-        elif fade_type == 'out':
+        elif fade_type == "out":
             opacity = interpolate(1, 0, t, easing)
-        elif fade_type == 'in_out':
+        elif fade_type == "in_out":
             if t < 0.5:
                 opacity = interpolate(0, 1, t * 2, easing)
             else:
                 opacity = interpolate(1, 0, (t - 0.5) * 2, easing)
-        elif fade_type == 'blink':
+        elif fade_type == "blink":
             # Quick fade out and back in
             if t < 0.2:
-                opacity = interpolate(1, 0, t / 0.2, 'ease_in')
+                opacity = interpolate(1, 0, t / 0.2, "ease_in")
             elif t < 0.4:
-                opacity = interpolate(0, 1, (t - 0.2) / 0.2, 'ease_out')
+                opacity = interpolate(0, 1, (t - 0.2) / 0.2, "ease_out")
             else:
                 opacity = 1.0
         else:
@@ -80,47 +79,47 @@ def create_fade_animation(
         frame_bg = create_blank_frame(frame_width, frame_height, bg_color)
 
         # Create object layer with transparency
-        if object_type == 'emoji':
+        if object_type == "emoji":
             # Create RGBA canvas for emoji
-            emoji_canvas = Image.new('RGBA', (frame_width, frame_height), (0, 0, 0, 0))
-            emoji_size = object_data['size']
+            emoji_canvas = Image.new("RGBA", (frame_width, frame_height), (0, 0, 0, 0))
+            emoji_size = object_data["size"]
             draw_emoji_enhanced(
                 emoji_canvas,
-                emoji=object_data['emoji'],
+                emoji=object_data["emoji"],
                 position=(center_pos[0] - emoji_size // 2, center_pos[1] - emoji_size // 2),
                 size=emoji_size,
-                shadow=object_data.get('shadow', False)
+                shadow=object_data.get("shadow", False),
             )
 
             # Apply opacity
             emoji_canvas = apply_opacity(emoji_canvas, opacity)
 
             # Composite onto background
-            frame_bg_rgba = frame_bg.convert('RGBA')
+            frame_bg_rgba = frame_bg.convert("RGBA")
             frame = Image.alpha_composite(frame_bg_rgba, emoji_canvas)
-            frame = frame.convert('RGB')
+            frame = frame.convert("RGB")
 
-        elif object_type == 'text':
+        elif object_type == "text":
             from core.typography import draw_text_with_outline
 
             # Create text on separate layer
-            text_canvas = Image.new('RGBA', (frame_width, frame_height), (0, 0, 0, 0))
-            text_canvas_rgb = text_canvas.convert('RGB')
+            text_canvas = Image.new("RGBA", (frame_width, frame_height), (0, 0, 0, 0))
+            text_canvas_rgb = text_canvas.convert("RGB")
             text_canvas_rgb.paste(bg_color, (0, 0, frame_width, frame_height))
 
             draw_text_with_outline(
                 text_canvas_rgb,
-                text=object_data.get('text', 'FADE'),
+                text=object_data.get("text", "FADE"),
                 position=center_pos,
-                font_size=object_data.get('font_size', 60),
-                text_color=object_data.get('text_color', (0, 0, 0)),
-                outline_color=object_data.get('outline_color', (255, 255, 255)),
+                font_size=object_data.get("font_size", 60),
+                text_color=object_data.get("text_color", (0, 0, 0)),
+                outline_color=object_data.get("outline_color", (255, 255, 255)),
                 outline_width=3,
-                centered=True
+                centered=True,
             )
 
             # Convert to RGBA and make background transparent
-            text_canvas = text_canvas_rgb.convert('RGBA')
+            text_canvas = text_canvas_rgb.convert("RGBA")
             data = text_canvas.getdata()
             new_data = []
             for item in data:
@@ -134,9 +133,9 @@ def create_fade_animation(
             text_canvas = apply_opacity(text_canvas, opacity)
 
             # Composite
-            frame_bg_rgba = frame_bg.convert('RGBA')
+            frame_bg_rgba = frame_bg.convert("RGBA")
             frame = Image.alpha_composite(frame_bg_rgba, text_canvas)
-            frame = frame.convert('RGB')
+            frame = frame.convert("RGB")
 
         else:
             frame = frame_bg
@@ -157,8 +156,8 @@ def apply_opacity(image: Image.Image, opacity: float) -> Image.Image:
     Returns:
         Image with adjusted opacity
     """
-    if image.mode != 'RGBA':
-        image = image.convert('RGBA')
+    if image.mode != "RGBA":
+        image = image.convert("RGBA")
 
     # Get alpha channel
     r, g, b, a = image.split()
@@ -169,19 +168,19 @@ def apply_opacity(image: Image.Image, opacity: float) -> Image.Image:
     a = Image.fromarray(a_array.astype(np.uint8))
 
     # Merge back
-    return Image.merge('RGBA', (r, g, b, a))
+    return Image.merge("RGBA", (r, g, b, a))
 
 
 def create_crossfade(
     object1_data: dict,
     object2_data: dict,
     num_frames: int = 30,
-    easing: str = 'ease_in_out',
-    object_type: str = 'emoji',
+    easing: str = "ease_in_out",
+    object_type: str = "emoji",
     center_pos: tuple[int, int] = (240, 240),
     frame_width: int = 480,
     frame_height: int = 480,
-    bg_color: tuple[int, int, int] = (255, 255, 255)
+    bg_color: tuple[int, int, int] = (255, 255, 255),
 ) -> list[Image.Image]:
     """
     Crossfade between two objects.
@@ -212,36 +211,36 @@ def create_crossfade(
         # Create background
         frame = create_blank_frame(frame_width, frame_height, bg_color)
 
-        if object_type == 'emoji':
+        if object_type == "emoji":
             # Create first emoji
-            emoji1_canvas = Image.new('RGBA', (frame_width, frame_height), (0, 0, 0, 0))
-            size1 = object1_data['size']
+            emoji1_canvas = Image.new("RGBA", (frame_width, frame_height), (0, 0, 0, 0))
+            size1 = object1_data["size"]
             draw_emoji_enhanced(
                 emoji1_canvas,
-                emoji=object1_data['emoji'],
+                emoji=object1_data["emoji"],
                 position=(center_pos[0] - size1 // 2, center_pos[1] - size1 // 2),
                 size=size1,
-                shadow=False
+                shadow=False,
             )
             emoji1_canvas = apply_opacity(emoji1_canvas, opacity1)
 
             # Create second emoji
-            emoji2_canvas = Image.new('RGBA', (frame_width, frame_height), (0, 0, 0, 0))
-            size2 = object2_data['size']
+            emoji2_canvas = Image.new("RGBA", (frame_width, frame_height), (0, 0, 0, 0))
+            size2 = object2_data["size"]
             draw_emoji_enhanced(
                 emoji2_canvas,
-                emoji=object2_data['emoji'],
+                emoji=object2_data["emoji"],
                 position=(center_pos[0] - size2 // 2, center_pos[1] - size2 // 2),
                 size=size2,
-                shadow=False
+                shadow=False,
             )
             emoji2_canvas = apply_opacity(emoji2_canvas, opacity2)
 
             # Composite both
-            frame_rgba = frame.convert('RGBA')
+            frame_rgba = frame.convert("RGBA")
             frame_rgba = Image.alpha_composite(frame_rgba, emoji1_canvas)
             frame_rgba = Image.alpha_composite(frame_rgba, emoji2_canvas)
-            frame = frame_rgba.convert('RGB')
+            frame = frame_rgba.convert("RGB")
 
         frames.append(frame)
 
@@ -252,9 +251,9 @@ def create_fade_to_color(
     start_color: tuple[int, int, int],
     end_color: tuple[int, int, int],
     num_frames: int = 20,
-    easing: str = 'linear',
+    easing: str = "linear",
     frame_width: int = 480,
-    frame_height: int = 480
+    frame_height: int = 480,
 ) -> list[Image.Image]:
     """
     Fade from one solid color to another.
@@ -288,42 +287,42 @@ def create_fade_to_color(
 
 
 # Example usage
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Creating fade animations...")
 
     builder = GIFBuilder(width=480, height=480, fps=20)
 
     # Example 1: Fade in
     frames = create_fade_animation(
-        object_type='emoji',
-        object_data={'emoji': '✨', 'size': 120},
+        object_type="emoji",
+        object_data={"emoji": "✨", "size": 120},
         num_frames=30,
-        fade_type='in',
-        easing='ease_out'
+        fade_type="in",
+        easing="ease_out",
     )
     builder.add_frames(frames)
-    builder.save('fade_in.gif', num_colors=128)
+    builder.save("fade_in.gif", num_colors=128)
 
     # Example 2: Crossfade
     builder.clear()
     frames = create_crossfade(
-        object1_data={'emoji': '😊', 'size': 100},
-        object2_data={'emoji': '😂', 'size': 100},
+        object1_data={"emoji": "😊", "size": 100},
+        object2_data={"emoji": "😂", "size": 100},
         num_frames=30,
-        object_type='emoji'
+        object_type="emoji",
     )
     builder.add_frames(frames)
-    builder.save('fade_crossfade.gif', num_colors=128)
+    builder.save("fade_crossfade.gif", num_colors=128)
 
     # Example 3: Blink
     builder.clear()
     frames = create_fade_animation(
-        object_type='emoji',
-        object_data={'emoji': '👀', 'size': 100},
+        object_type="emoji",
+        object_data={"emoji": "👀", "size": 100},
         num_frames=20,
-        fade_type='blink'
+        fade_type="blink",
     )
     builder.add_frames(frames)
-    builder.save('fade_blink.gif', num_colors=128)
+    builder.save("fade_blink.gif", num_colors=128)
 
     print("Created fade animations!")

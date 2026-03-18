@@ -1,4 +1,5 @@
 """嵌入服务，使用 DashScope API（OpenAI 兼容）。"""
+
 from openai import AsyncOpenAI
 
 from omni_agent.core.config import settings

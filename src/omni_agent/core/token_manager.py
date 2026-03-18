@@ -20,8 +20,8 @@
     tokens = manager.estimate_tokens(messages)
     compressed = await manager.maybe_summarize_messages(messages)
 """
+
 import logging
-from typing import Any
 
 import tiktoken
 
@@ -61,7 +61,7 @@ class TokenManager:
         self.token_limit = token_limit
         self.enable_summarization = enable_summarization
         self.summarize_after_rounds = summarize_after_rounds
-        
+
         # 核心记忆存储（跨轮次保持）
         self.core_memory: str = ""
 
@@ -158,8 +158,7 @@ class TokenManager:
 
         # 检查是否需要压缩：轮次超过阈值 或 token 超限
         need_compress = (
-            num_rounds > self.summarize_after_rounds or 
-            estimated_tokens > self.token_limit
+            num_rounds > self.summarize_after_rounds or estimated_tokens > self.token_limit
         )
 
         if not need_compress:
@@ -167,7 +166,9 @@ class TokenManager:
 
         logger.info(
             "Token compression triggered: rounds=%d, tokens=%d/%d",
-            num_rounds, estimated_tokens, self.token_limit
+            num_rounds,
+            estimated_tokens,
+            self.token_limit,
         )
 
         # 至少需要 2 轮才能压缩
@@ -176,23 +177,23 @@ class TokenManager:
 
         # 压缩策略：保留最近 1 轮完整对话，压缩之前的轮次为核心记忆
         rounds_to_compress = num_rounds - 1  # 压缩除最后一轮外的所有轮次
-        
+
         # 收集需要压缩的消息
         compress_end_idx = user_indices[-1]  # 最后一个 user 消息之前的所有内容
         messages_to_compress = messages[1:compress_end_idx]  # 排除 system prompt
-        
+
         if not messages_to_compress:
             return messages
 
         # 生成核心记忆
         core_memory = await self._extract_core_memory(messages_to_compress, rounds_to_compress)
-        
+
         if core_memory:
             self.core_memory = core_memory  # 保存核心记忆
-        
+
         # 构建新的消息列表
         new_messages = [messages[0]]  # system prompt
-        
+
         # 注入核心记忆
         if self.core_memory:
             memory_message = Message(
@@ -201,22 +202,26 @@ class TokenManager:
             )
             new_messages.append(memory_message)
             # 添加一个确认消息
-            new_messages.append(Message(
-                role="assistant",
-                content="好的，我已了解之前的对话内容，请继续。",
-            ))
-        
+            new_messages.append(
+                Message(
+                    role="assistant",
+                    content="好的，我已了解之前的对话内容，请继续。",
+                )
+            )
+
         # 添加最近一轮的完整对话
         new_messages.extend(messages[compress_end_idx:])
 
         new_tokens = self.estimate_tokens(new_messages)
         logger.info(
             "Token compression completed: %d -> %d tokens, compressed %d rounds",
-            estimated_tokens, new_tokens, rounds_to_compress
+            estimated_tokens,
+            new_tokens,
+            rounds_to_compress,
         )
 
         return new_messages
-    
+
     async def _extract_core_memory(self, messages: list[Message], num_rounds: int) -> str:
         """从历史消息中提取核心记忆.
 
@@ -278,4 +283,3 @@ class TokenManager:
         except Exception as e:
             logger.warning("Core memory extraction failed: %s", e)
             return f"[{num_rounds} rounds history, extraction failed]"
-

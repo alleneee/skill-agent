@@ -62,11 +62,24 @@ exclude = [
     ".venv",
     "__pycache__",
     "workspace",
+    "quicksort.py",
 ]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
-ignore = ["E501"]  # Line too long (handled by formatter)
+ignore = [
+    "E501",   # Line too long (handled by formatter)
+    "E402",   # Module level import not at top (common with load_dotenv, conditional imports)
+    "E722",   # Do not use bare except (existing code pattern in skills)
+    "E741",   # Ambiguous variable name (l, I, O used in math/data contexts)
+    "B008",   # Function calls in argument defaults (FastAPI Depends pattern)
+    "B024",   # Abstract base class without abstract methods
+    "B027",   # Empty method in abstract class (intentional for hook base classes)
+    "B904",   # Within except clause, raise with from (style preference)
+    "F821",   # Undefined name (string-quoted forward references for type hints)
+    "N801",   # Class name should use CapWords convention
+    "N806",   # Variable in function should be lowercase
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["omni_agent"]

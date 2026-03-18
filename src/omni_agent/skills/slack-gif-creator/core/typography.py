@@ -7,18 +7,16 @@ in GIFs, with outlines for readability and effects for visual impact.
 """
 
 from PIL import Image, ImageDraw, ImageFont
-from typing import Optional
-
 
 # Typography scale - proportional sizing system
 TYPOGRAPHY_SCALE = {
-    'h1': 60,      # Large headers
-    'h2': 48,      # Medium headers
-    'h3': 36,      # Small headers
-    'title': 50,   # Title text
-    'body': 28,    # Body text
-    'small': 20,   # Small text
-    'tiny': 16,    # Tiny text
+    "h1": 60,  # Large headers
+    "h2": 48,  # Medium headers
+    "h3": 36,  # Small headers
+    "title": 50,  # Title text
+    "body": 28,  # Body text
+    "small": 20,  # Small text
+    "tiny": 16,  # Tiny text
 }
 
 
@@ -40,7 +38,9 @@ def get_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
         "/System/Library/Fonts/SF-Pro.ttf",
         "/Library/Fonts/Arial Bold.ttf" if bold else "/Library/Fonts/Arial.ttf",
         # Linux fonts
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+        if bold
+        else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         # Windows fonts
         "C:\\Windows\\Fonts\\arialbd.ttf" if bold else "C:\\Windows\\Fonts\\arial.ttf",
     ]
@@ -64,7 +64,7 @@ def draw_text_with_outline(
     outline_color: tuple[int, int, int] = (0, 0, 0),
     outline_width: int = 3,
     centered: bool = False,
-    bold: bool = True
+    bold: bool = True,
 ) -> Image.Image:
     """
     Draw text with outline for maximum readability.
@@ -120,7 +120,7 @@ def draw_text_with_shadow(
     shadow_color: tuple[int, int, int] = (0, 0, 0),
     shadow_offset: tuple[int, int] = (3, 3),
     centered: bool = False,
-    bold: bool = True
+    bold: bool = True,
 ) -> Image.Image:
     """
     Draw text with drop shadow for depth.
@@ -170,7 +170,7 @@ def draw_text_with_glow(
     glow_color: tuple[int, int, int] = (255, 200, 0),
     glow_radius: int = 5,
     centered: bool = False,
-    bold: bool = True
+    bold: bool = True,
 ) -> Image.Image:
     """
     Draw text with glow effect for emphasis.
@@ -225,7 +225,7 @@ def draw_text_in_box(
     box_alpha: float = 0.7,
     padding: int = 10,
     centered: bool = True,
-    bold: bool = True
+    bold: bool = True,
 ) -> Image.Image:
     """
     Draw text in a semi-transparent box for guaranteed readability.
@@ -246,7 +246,7 @@ def draw_text_in_box(
         Modified frame
     """
     # Create a separate layer for the box with alpha
-    overlay = Image.new('RGBA', frame.size, (0, 0, 0, 0))
+    overlay = Image.new("RGBA", frame.size, (0, 0, 0, 0))
     draw_overlay = ImageDraw.Draw(overlay)
     draw = ImageDraw.Draw(frame)
 
@@ -270,19 +270,14 @@ def draw_text_in_box(
         text_y = position[1]
 
     # Draw semi-transparent box
-    box_coords = [
-        box_x,
-        box_y,
-        box_x + text_width + padding * 2,
-        box_y + text_height + padding * 2
-    ]
+    box_coords = [box_x, box_y, box_x + text_width + padding * 2, box_y + text_height + padding * 2]
     alpha_value = int(255 * box_alpha)
     draw_overlay.rectangle(box_coords, fill=(*box_color, alpha_value))
 
     # Composite overlay onto frame
-    frame_rgba = frame.convert('RGBA')
+    frame_rgba = frame.convert("RGBA")
     frame_rgba = Image.alpha_composite(frame_rgba, overlay)
-    frame = frame_rgba.convert('RGB')
+    frame = frame_rgba.convert("RGB")
 
     # Draw text on top
     draw = ImageDraw.Draw(frame)
@@ -305,7 +300,7 @@ def get_text_size(text: str, font_size: int, bold: bool = True) -> tuple[int, in
     """
     font = get_font(font_size, bold=bold)
     # Create temporary image to measure
-    temp_img = Image.new('RGB', (1, 1))
+    temp_img = Image.new("RGB", (1, 1))
     draw = ImageDraw.Draw(temp_img)
     bbox = draw.textbbox((0, 0), text, font=font)
     width = bbox[2] - bbox[0]
@@ -313,8 +308,7 @@ def get_text_size(text: str, font_size: int, bold: bool = True) -> tuple[int, in
     return (width, height)
 
 
-def get_optimal_font_size(text: str, max_width: int, max_height: int,
-                          start_size: int = 60) -> int:
+def get_optimal_font_size(text: str, max_width: int, max_height: int, start_size: int = 60) -> int:
     """
     Find the largest font size that fits within given dimensions.
 

@@ -1,30 +1,30 @@
 """Integration tests for SpawnAgentTool functionality."""
 
 import asyncio
-import os
-import sys
-from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
+from unittest.mock import MagicMock
 
 try:
     import pytest
+
     HAS_PYTEST = True
 except ImportError:
     HAS_PYTEST = False
+
     class pytest:
         class mark:
             @staticmethod
             def asyncio(func):
                 return func
 
+
+from omni_agent.api.deps import AgentFactory
 from omni_agent.core.agent import Agent
 from omni_agent.core.config import settings
 from omni_agent.core.llm_client import LLMClient
-from omni_agent.schemas.message import AgentConfig, LLMResponse, ToolCall, FunctionCall
+from omni_agent.schemas.message import AgentConfig, FunctionCall, LLMResponse, ToolCall
 from omni_agent.tools.base import Tool, ToolResult
 from omni_agent.tools.spawn_agent_tool import SpawnAgentTool
-from omni_agent.tools.file_tools import ReadTool
-from omni_agent.api.deps import AgentFactory
 
 
 class MockReadTool(Tool):
@@ -37,12 +37,8 @@ class MockReadTool(Tool):
         return "Read file content"
 
     @property
-    def parameters(self) -> Dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {"path": {"type": "string"}},
-            "required": ["path"]
-        }
+    def parameters(self) -> dict[str, Any]:
+        return {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}
 
     async def execute(self, path: str, **kwargs) -> ToolResult:
         return ToolResult(success=True, content=f"Content of {path}: mock file content")
@@ -58,28 +54,23 @@ class MockWriteTool(Tool):
         return "Write file content"
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
-            "properties": {
-                "path": {"type": "string"},
-                "content": {"type": "string"}
-            },
-            "required": ["path", "content"]
+            "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+            "required": ["path", "content"],
         }
 
     async def execute(self, path: str, content: str, **kwargs) -> ToolResult:
         return ToolResult(success=True, content=f"Written to {path}")
 
 
-def create_mock_llm_client(responses: List[LLMResponse] = None):
+def create_mock_llm_client(responses: list[LLMResponse] = None):
     """Create a mock LLM client with predefined responses."""
     mock_client = MagicMock(spec=LLMClient)
 
     if responses is None:
-        responses = [
-            LLMResponse(content="Task completed successfully.", tool_calls=None)
-        ]
+        responses = [LLMResponse(content="Task completed successfully.", tool_calls=None)]
 
     response_iter = iter(responses)
 
@@ -104,7 +95,7 @@ class TestSpawnAgentToolBasic:
             parent_tools={},
             workspace_dir="/tmp/test",
             current_depth=0,
-            max_depth=3
+            max_depth=3,
         )
 
         assert tool.name == "spawn_agent"
@@ -126,7 +117,7 @@ class TestSpawnAgentToolBasic:
             parent_tools={},
             workspace_dir="/tmp/test",
             current_depth=0,
-            max_depth=3
+            max_depth=3,
         )
         assert tool_d0._current_depth == 0
         assert "0/3" in tool_d0.description
@@ -136,7 +127,7 @@ class TestSpawnAgentToolBasic:
             parent_tools={},
             workspace_dir="/tmp/test",
             current_depth=2,
-            max_depth=3
+            max_depth=3,
         )
         assert tool_d2._current_depth == 2
         assert "2/3" in tool_d2.description
@@ -155,7 +146,7 @@ class TestSpawnAgentToolDepthLimit:
             parent_tools={},
             workspace_dir="/tmp/test",
             current_depth=3,
-            max_depth=3
+            max_depth=3,
         )
 
         result = await tool.execute(task="test task")
@@ -167,9 +158,7 @@ class TestSpawnAgentToolDepthLimit:
     @pytest.mark.asyncio
     async def test_depth_limit_allows_spawn_below_max(self):
         """Test that spawning is allowed below max depth."""
-        responses = [
-            LLMResponse(content="Sub-agents completed the task.", tool_calls=None)
-        ]
+        responses = [LLMResponse(content="Sub-agents completed the task.", tool_calls=None)]
         mock_llm = create_mock_llm_client(responses)
 
         tool = SpawnAgentTool(
@@ -177,7 +166,7 @@ class TestSpawnAgentToolDepthLimit:
             parent_tools={"read_file": MockReadTool()},
             workspace_dir="/tmp/test",
             current_depth=1,
-            max_depth=3
+            max_depth=3,
         )
 
         result = await tool.execute(task="test task", role="tester")
@@ -202,7 +191,7 @@ class TestSpawnAgentToolInheritance:
             parent_tools=parent_tools,
             workspace_dir="/tmp/test",
             current_depth=0,
-            max_depth=3
+            max_depth=3,
         )
 
         sub_tools = tool._build_sub_agent_tools(None)
@@ -224,7 +213,7 @@ class TestSpawnAgentToolInheritance:
             parent_tools=parent_tools,
             workspace_dir="/tmp/test",
             current_depth=0,
-            max_depth=3
+            max_depth=3,
         )
 
         sub_tools = tool._build_sub_agent_tools(["read_file"])
@@ -242,7 +231,7 @@ class TestSpawnAgentToolInheritance:
             parent_tools={},
             workspace_dir="/tmp/test",
             current_depth=0,
-            max_depth=3
+            max_depth=3,
         )
 
         parent_tools = {
@@ -255,7 +244,7 @@ class TestSpawnAgentToolInheritance:
             parent_tools=parent_tools,
             workspace_dir="/tmp/test",
             current_depth=0,
-            max_depth=3
+            max_depth=3,
         )
 
         sub_tools = tool._build_sub_agent_tools(None)
@@ -273,7 +262,7 @@ class TestSpawnAgentToolInheritance:
             parent_tools={},
             workspace_dir="/tmp/test",
             current_depth=0,
-            max_depth=3
+            max_depth=3,
         )
 
         parent_tools = {
@@ -286,7 +275,7 @@ class TestSpawnAgentToolInheritance:
             parent_tools=parent_tools,
             workspace_dir="/tmp/test",
             current_depth=2,  # At depth 2, sub-agents would be depth 3 (max)
-            max_depth=3
+            max_depth=3,
         )
 
         sub_tools = tool._build_sub_agent_tools(None)
@@ -306,7 +295,7 @@ class TestSpawnAgentToolSystemPrompt:
             parent_tools={},
             workspace_dir="/tmp/test",
             current_depth=0,
-            max_depth=3
+            max_depth=3,
         )
 
         prompt = tool._build_sub_agent_prompt(role="security auditor", context=None)
@@ -322,7 +311,7 @@ class TestSpawnAgentToolSystemPrompt:
             parent_tools={},
             workspace_dir="/tmp/test",
             current_depth=0,
-            max_depth=3
+            max_depth=3,
         )
 
         context = "This is a FastAPI project using SQLAlchemy"
@@ -339,7 +328,7 @@ class TestSpawnAgentToolSystemPrompt:
             parent_tools={},
             workspace_dir="/custom/workspace",
             current_depth=0,
-            max_depth=3
+            max_depth=3,
         )
 
         prompt = tool._build_sub_agent_prompt(role=None, context=None)
@@ -355,8 +344,7 @@ class TestSpawnAgentToolExecution:
         """Test successful sub-agents execution."""
         responses = [
             LLMResponse(
-                content="I have analyzed the code and found no security issues.",
-                tool_calls=None
+                content="I have analyzed the code and found no security issues.", tool_calls=None
             )
         ]
         mock_llm = create_mock_llm_client(responses)
@@ -367,13 +355,13 @@ class TestSpawnAgentToolExecution:
             workspace_dir="/tmp/test",
             current_depth=0,
             max_depth=3,
-            default_max_steps=10
+            default_max_steps=10,
         )
 
         result = await tool.execute(
             task="Analyze code for security issues",
             role="security auditor",
-            context="Check the /src directory"
+            context="Check the /src directory",
         )
 
         assert result.success is True
@@ -391,17 +379,11 @@ class TestSpawnAgentToolExecution:
                     ToolCall(
                         id="call_1",
                         type="function",
-                        function=FunctionCall(
-                            name="read_file",
-                            arguments={"path": "/src/main.py"}
-                        )
+                        function=FunctionCall(name="read_file", arguments={"path": "/src/main.py"}),
                     )
-                ]
+                ],
             ),
-            LLMResponse(
-                content="File analyzed. No issues found.",
-                tool_calls=None
-            )
+            LLMResponse(content="File analyzed. No issues found.", tool_calls=None),
         ]
         mock_llm = create_mock_llm_client(responses)
 
@@ -410,13 +392,10 @@ class TestSpawnAgentToolExecution:
             parent_tools={"read_file": MockReadTool()},
             workspace_dir="/tmp/test",
             current_depth=0,
-            max_depth=3
+            max_depth=3,
         )
 
-        result = await tool.execute(
-            task="Read and analyze main.py",
-            tools=["read_file"]
-        )
+        result = await tool.execute(task="Read and analyze main.py", tools=["read_file"])
 
         assert result.success is True
         assert "File analyzed" in result.content
@@ -424,9 +403,7 @@ class TestSpawnAgentToolExecution:
     @pytest.mark.asyncio
     async def test_max_steps_respected(self):
         """Test that max_steps parameter is respected."""
-        responses = [
-            LLMResponse(content="Done", tool_calls=None)
-        ]
+        responses = [LLMResponse(content="Done", tool_calls=None)]
         mock_llm = create_mock_llm_client(responses)
 
         tool = SpawnAgentTool(
@@ -435,7 +412,7 @@ class TestSpawnAgentToolExecution:
             workspace_dir="/tmp/test",
             current_depth=0,
             max_depth=3,
-            default_max_steps=15
+            default_max_steps=15,
         )
 
         # Request 25 steps but should be capped at 30
@@ -461,7 +438,7 @@ class TestAgentFactoryIntegration:
             enable_mcp_tools=False,
             enable_skills=False,
             enable_rag=False,
-            base_tools_filter=["read_file"]
+            base_tools_filter=["read_file"],
         )
 
         agent = await factory.create_agent(mock_llm, config)
@@ -481,7 +458,7 @@ class TestAgentFactoryIntegration:
             enable_mcp_tools=False,
             enable_skills=False,
             enable_rag=False,
-            base_tools_filter=["read_file"]
+            base_tools_filter=["read_file"],
         )
 
         agent = await factory.create_agent(mock_llm, config)
@@ -501,7 +478,7 @@ class TestAgentFactoryIntegration:
             enable_base_tools=False,
             enable_mcp_tools=False,
             enable_skills=False,
-            enable_rag=False
+            enable_rag=False,
         )
 
         agent = await factory.create_agent(mock_llm, config)
@@ -530,23 +507,21 @@ class TestEndToEndScenario:
                             arguments={
                                 "task": "Analyze security vulnerabilities",
                                 "role": "security expert",
-                                "tools": ["read_file"]
-                            }
-                        )
+                                "tools": ["read_file"],
+                            },
+                        ),
                     )
-                ]
+                ],
             ),
             LLMResponse(
-                content="Based on the security analysis, the code is secure.",
-                tool_calls=None
-            )
+                content="Based on the security analysis, the code is secure.", tool_calls=None
+            ),
         ]
 
         # Sub-agents response
         sub_responses = [
             LLMResponse(
-                content="Security analysis complete. No vulnerabilities found.",
-                tool_calls=None
+                content="Security analysis complete. No vulnerabilities found.", tool_calls=None
             )
         ]
 
@@ -569,7 +544,7 @@ class TestEndToEndScenario:
             parent_tools=parent_tools,
             workspace_dir="/tmp/test",
             current_depth=0,
-            max_depth=3
+            max_depth=3,
         )
 
         all_tools = [MockReadTool(), spawn_tool]
@@ -580,7 +555,7 @@ class TestEndToEndScenario:
             tools=all_tools,
             max_steps=10,
             workspace_dir="/tmp/test",
-            enable_logging=False
+            enable_logging=False,
         )
 
         agent.add_user_message("Check this project for security issues")
@@ -609,7 +584,7 @@ def run_quick_test():
         parent_tools={},
         workspace_dir="/tmp/test",
         current_depth=0,
-        max_depth=3
+        max_depth=3,
     )
     assert tool.name == "spawn_agent"
     print("  ✅ Tool name correct")
@@ -625,7 +600,7 @@ def run_quick_test():
             parent_tools={},
             workspace_dir="/tmp/test",
             current_depth=3,
-            max_depth=3
+            max_depth=3,
         )
         result = await tool_at_max.execute(task="test")
         assert result.success is False
@@ -645,7 +620,7 @@ def run_quick_test():
         parent_tools=parent_tools,
         workspace_dir="/tmp/test",
         current_depth=0,
-        max_depth=3
+        max_depth=3,
     )
     sub_tools = tool._build_sub_agent_tools(None)
     sub_names = [t.name for t in sub_tools]
@@ -664,7 +639,7 @@ def run_quick_test():
             enable_base_tools=False,
             enable_mcp_tools=False,
             enable_skills=False,
-            enable_rag=False
+            enable_rag=False,
         )
         agent = await factory.create_agent(mock_llm_client, config)
         assert "spawn_agent" in agent.tools
@@ -676,16 +651,14 @@ def run_quick_test():
     print("\n[Test 5] Sub-agents execution...")
 
     async def test_execution():
-        responses = [
-            LLMResponse(content="Task completed.", tool_calls=None)
-        ]
+        responses = [LLMResponse(content="Task completed.", tool_calls=None)]
         llm = create_mock_llm_client(responses)
         tool = SpawnAgentTool(
             llm_client=llm,
             parent_tools={"read_file": MockReadTool()},
             workspace_dir="/tmp/test",
             current_depth=0,
-            max_depth=3
+            max_depth=3,
         )
         result = await tool.execute(task="Analyze code", role="reviewer")
         assert result.success is True

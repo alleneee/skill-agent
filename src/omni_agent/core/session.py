@@ -11,8 +11,7 @@
 
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 
 # ============================================================================
 # Agent Session (单 Agent 会话支持)
@@ -32,7 +31,7 @@ class AgentRunRecord:
     success: bool
     steps: int
     timestamp: float
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -44,9 +43,9 @@ class AgentSession:
 
     session_id: str
     agent_name: str
-    user_id: Optional[str]
-    runs: List[AgentRunRecord]
-    state: Dict[str, Any]
+    user_id: str | None
+    runs: list[AgentRunRecord]
+    state: dict[str, Any]
     created_at: float
     updated_at: float
 
@@ -57,10 +56,10 @@ class AgentSession:
 
     def get_history_messages(
         self,
-        num_runs: Optional[int] = 3,
+        num_runs: int | None = 3,
         max_response_chars: int = 800,
         smart_compress: bool = True,
-    ) -> List[Dict[str, str]]:
+    ) -> list[dict[str, str]]:
         """获取历史消息，用于注入到 Agent messages 中
 
         Args:
@@ -85,9 +84,9 @@ class AgentSession:
                 head_chars = int(max_response_chars * 0.7)
                 tail_chars = int(max_response_chars * 0.2)
                 response = (
-                    response[:head_chars] +
-                    f"\n\n[... 中间内容已省略，共 {len(run.response)} 字符 ...]\n\n" +
-                    response[-tail_chars:]
+                    response[:head_chars]
+                    + f"\n\n[... 中间内容已省略，共 {len(run.response)} 字符 ...]\n\n"
+                    + response[-tail_chars:]
                 )
 
             messages.append({"role": "assistant", "content": response})
@@ -96,9 +95,9 @@ class AgentSession:
 
     def get_history_context(
         self,
-        num_runs: Optional[int] = 3,
-        max_chars: Optional[int] = None,
-        truncate_response: bool = True
+        num_runs: int | None = 3,
+        max_chars: int | None = None,
+        truncate_response: bool = True,
     ) -> str:
         """获取历史上下文 (用于系统提示)
 
@@ -159,7 +158,7 @@ class RunRecord:
     """
 
     run_id: str
-    parent_run_id: Optional[str]
+    parent_run_id: str | None
     runner_type: str
     runner_name: str
     task: str
@@ -167,7 +166,7 @@ class RunRecord:
     success: bool
     steps: int
     timestamp: float
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -179,9 +178,9 @@ class TeamSession:
 
     session_id: str
     team_name: str
-    user_id: Optional[str]
-    runs: List[RunRecord]
-    state: Dict[str, Any]
+    user_id: str | None
+    runs: list[RunRecord]
+    state: dict[str, Any]
     created_at: float
     updated_at: float
 
@@ -192,9 +191,9 @@ class TeamSession:
 
     def get_history_context(
         self,
-        num_runs: Optional[int] = 3,
-        max_chars: Optional[int] = None,
-        truncate_response: bool = True
+        num_runs: int | None = 3,
+        max_chars: int | None = None,
+        truncate_response: bool = True,
     ) -> str:
         """获取历史上下文 (仅 leader runs)
 
@@ -248,10 +247,7 @@ class TeamSession:
         Returns:
             格式化的成员交互记录
         """
-        member_runs = [
-            r for r in self.runs
-            if r.parent_run_id == current_run_id
-        ]
+        member_runs = [r for r in self.runs if r.parent_run_id == current_run_id]
 
         if not member_runs:
             return ""
@@ -265,7 +261,7 @@ class TeamSession:
 
         return context
 
-    def get_runs_count(self) -> Dict[str, int]:
+    def get_runs_count(self) -> dict[str, int]:
         """获取运行统计
 
         Returns:

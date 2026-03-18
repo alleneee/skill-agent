@@ -1,16 +1,15 @@
 """沙箱工具包 - 为会话创建所有沙箱工具。"""
-from typing import Optional
 
-from omni_agent.tools.base import Tool
-from omni_agent.sandbox.manager import SandboxManager, SandboxInstance
+from omni_agent.sandbox.manager import SandboxInstance, SandboxManager
 from omni_agent.sandbox.tools import (
-    SandboxShellTool,
-    SandboxReadTool,
-    SandboxWriteTool,
     SandboxEditTool,
     SandboxJupyterTool,
     SandboxListDirTool,
+    SandboxReadTool,
+    SandboxShellTool,
+    SandboxWriteTool,
 )
+from omni_agent.tools.base import Tool
 
 
 class SandboxToolkit:
@@ -60,12 +59,14 @@ class SandboxToolkit:
             tools.append(SandboxShellTool(sandbox))
 
         if self._enable_file_ops:
-            tools.extend([
-                SandboxReadTool(sandbox),
-                SandboxWriteTool(sandbox),
-                SandboxEditTool(sandbox),
-                SandboxListDirTool(sandbox),
-            ])
+            tools.extend(
+                [
+                    SandboxReadTool(sandbox),
+                    SandboxWriteTool(sandbox),
+                    SandboxEditTool(sandbox),
+                    SandboxListDirTool(sandbox),
+                ]
+            )
 
         if self._enable_jupyter:
             tools.append(SandboxJupyterTool(sandbox))

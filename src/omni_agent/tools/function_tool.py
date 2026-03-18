@@ -1,6 +1,8 @@
 """函数工具 - 从可调用函数动态创建工具。"""
+
 import inspect
-from typing import Any, Callable, get_type_hints, Optional
+from collections.abc import Callable
+from typing import Any, get_type_hints
 
 from omni_agent.tools.base import Tool, ToolResult
 
@@ -11,7 +13,7 @@ def _extract_docstring(func: Callable) -> str:
     if not doc:
         return func.__name__
     # Return first line as description
-    return doc.split('\n')[0].strip()
+    return doc.split("\n")[0].strip()
 
 
 def _generate_json_schema(func: Callable) -> dict[str, Any]:
@@ -27,7 +29,7 @@ def _generate_json_schema(func: Callable) -> dict[str, Any]:
 
     for param_name, param in sig.parameters.items():
         # Skip self, cls, and return annotations
-        if param_name in ('self', 'cls', 'return'):
+        if param_name in ("self", "cls", "return"):
             continue
 
         param_type = type_hints.get(param_name, str)
@@ -36,29 +38,22 @@ def _generate_json_schema(func: Callable) -> dict[str, Any]:
         # Try to extract description from docstring
         param_description = f"Parameter: {param_name}"
 
-        properties[param_name] = {
-            **param_schema,
-            "description": param_description
-        }
+        properties[param_name] = {**param_schema, "description": param_description}
 
         # Required if no default value
         if param.default == inspect.Parameter.empty:
             required.append(param_name)
 
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": required
-    }
+    return {"type": "object", "properties": properties, "required": required}
 
 
 def _type_to_json_schema(python_type: type) -> dict[str, Any]:
     """将 Python 类型转换为 JSON Schema 类型。"""
     # Handle Optional types
-    origin = getattr(python_type, '__origin__', None)
-    if origin is type(None) or str(python_type).startswith('typing.Optional'):
+    origin = getattr(python_type, "__origin__", None)
+    if origin is type(None) or str(python_type).startswith("typing.Optional"):
         # Extract inner type from Optional[T]
-        args = getattr(python_type, '__args__', ())
+        args = getattr(python_type, "__args__", ())
         if args:
             return _type_to_json_schema(args[0])
 
@@ -78,12 +73,9 @@ def _type_to_json_schema(python_type: type) -> dict[str, Any]:
 
     # Check for List[T]
     if origin is list:
-        args = getattr(python_type, '__args__', ())
+        args = getattr(python_type, "__args__", ())
         if args:
-            return {
-                "type": "array",
-                "items": _type_to_json_schema(args[0])
-            }
+            return {"type": "array", "items": _type_to_json_schema(args[0])}
         return {"type": "array"}
 
     # Default to string
@@ -99,9 +91,9 @@ class FunctionTool(Tool):
     def __init__(
         self,
         func: Callable,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        parameters: Optional[dict[str, Any]] = None,
+        name: str | None = None,
+        description: str | None = None,
+        parameters: dict[str, Any] | None = None,
     ):
         """初始化 FunctionTool。
 
@@ -153,9 +145,9 @@ class FunctionTool(Tool):
 
 def create_tool_from_function(
     func: Callable,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-    parameters: Optional[dict[str, Any]] = None,
+    name: str | None = None,
+    description: str | None = None,
+    parameters: dict[str, Any] | None = None,
 ) -> Tool:
     """从可调用函数创建 Tool。
 

@@ -320,14 +320,8 @@ class TestDeepRecallMemoryTool:
 
     @pytest.fixture
     def deep_tool(self, tmp_memory):
-        tmp_memory.write_profile(
-            "- Python高级开发者，偏好vim编辑器\n"
-            "- 使用macOS和zsh终端\n"
-        )
-        tmp_memory.write_habit(
-            "- 先写测试再写代码(TDD)\n"
-            "- 使用git进行版本管理\n"
-        )
+        tmp_memory.write_profile("- Python高级开发者，偏好vim编辑器\n- 使用macOS和zsh终端\n")
+        tmp_memory.write_habit("- 先写测试再写代码(TDD)\n- 使用git进行版本管理\n")
         tmp_memory.write_context(
             "# 当前任务\n\n重构记忆系统，从JSON迁移到Markdown\n\n"
             "## Round 1\n\n完成了Memory类的重写\n"
@@ -360,17 +354,13 @@ class TestDeepRecallMemoryTool:
 
     @pytest.mark.asyncio
     async def test_keyword_search_with_type_filter(self, deep_tool):
-        result = await deep_tool.execute(
-            query="vim", mode="keyword", memory_type="profile"
-        )
+        result = await deep_tool.execute(query="vim", mode="keyword", memory_type="profile")
         assert result.success
         assert "vim" in result.content
 
     @pytest.mark.asyncio
     async def test_keyword_search_type_filter_excludes_other(self, deep_tool):
-        result = await deep_tool.execute(
-            query="重构", mode="keyword", memory_type="profile"
-        )
+        result = await deep_tool.execute(query="重构", mode="keyword", memory_type="profile")
         assert result.success
         assert "没有找到" in result.content
 

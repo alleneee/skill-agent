@@ -1,9 +1,10 @@
 """沙箱生命周期管理器 - 每个会话一个沙箱。"""
+
 import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ class SandboxManager:
         self._sandboxes: dict[str, SandboxInstance] = {}
         self._lock = asyncio.Lock()
         self._initialized = False
-        self._docker_container_id: Optional[str] = None
+        self._docker_container_id: str | None = None
 
     async def initialize(self) -> None:
         """初始化沙箱管理器。"""
@@ -106,9 +107,13 @@ class SandboxManager:
             logger.info(f"Starting sandbox container: {self._docker_image}")
             result = subprocess.run(
                 [
-                    "docker", "run", "-d",
-                    "--security-opt", "seccomp=unconfined",
-                    "-p", "8080:8080",
+                    "docker",
+                    "run",
+                    "-d",
+                    "--security-opt",
+                    "seccomp=unconfined",
+                    "-p",
+                    "8080:8080",
                     self._docker_image,
                 ],
                 capture_output=True,
@@ -150,9 +155,7 @@ class SandboxManager:
         try:
             from agent_sandbox import Sandbox
         except ImportError:
-            raise RuntimeError(
-                "agents-sandbox not installed. Run: uv add agents-sandbox"
-            )
+            raise RuntimeError("agents-sandbox not installed. Run: uv add agents-sandbox")
 
         client = Sandbox(base_url=self._base_url)
 
@@ -223,6 +226,7 @@ class SandboxManager:
 
         if self._docker_container_id and self._auto_start_docker:
             import subprocess
+
             try:
                 subprocess.run(
                     ["docker", "stop", self._docker_container_id],

@@ -1,4 +1,5 @@
 """知识库管理 API 端点。"""
+
 from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, UploadFile

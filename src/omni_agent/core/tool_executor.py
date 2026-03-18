@@ -14,10 +14,11 @@
         arguments={"command": "ls"}
     )
 """
+
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from omni_agent.tools.base import Tool, ToolResult
 
@@ -34,7 +35,7 @@ class ToolExecutionResult:
 class ToolExecutor:
     def __init__(
         self,
-        tools: Optional[dict[str, Tool]] = None,
+        tools: dict[str, Tool] | None = None,
         output_limit: int = 10000,
         parallel_execution: bool = False,
     ) -> None:
@@ -45,7 +46,7 @@ class ToolExecutor:
     def set_tools(self, tools: dict[str, Tool]) -> None:
         self._tools = tools
 
-    def get_tool(self, name: str) -> Optional[Tool]:
+    def get_tool(self, name: str) -> Tool | None:
         return self._tools.get(name)
 
     def has_tool(self, name: str) -> bool:
@@ -102,10 +103,7 @@ class ToolExecutor:
             return []
 
         if self._parallel_execution and len(tool_calls) > 1:
-            tasks = [
-                self.execute_single(call_id, name, args)
-                for call_id, name, args in tool_calls
-            ]
+            tasks = [self.execute_single(call_id, name, args) for call_id, name, args in tool_calls]
             return await asyncio.gather(*tasks)
         else:
             results = []
@@ -118,8 +116,5 @@ class ToolExecutor:
         if not content:
             return content
         if len(content) > self._output_limit:
-            return (
-                content[: self._output_limit]
-                + f"\n...[truncated, total {len(content)} chars]"
-            )
+            return content[: self._output_limit] + f"\n...[truncated, total {len(content)} chars]"
         return content

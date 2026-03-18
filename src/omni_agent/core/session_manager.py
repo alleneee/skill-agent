@@ -26,7 +26,7 @@
 
 import asyncio
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from omni_agent.core.session import (
     AgentRunRecord,
@@ -35,11 +35,10 @@ from omni_agent.core.session import (
     TeamSession,
 )
 from omni_agent.core.session_storage import (
-    SessionStorage,
     FileStorage,
-    RedisStorage,
     PostgresStorage,
-    create_storage,
+    RedisStorage,
+    SessionStorage,
 )
 
 
@@ -50,14 +49,14 @@ class UnifiedAgentSessionManager:
         self,
         backend: str = "file",
         # File backend options
-        storage_path: Optional[str] = None,
+        storage_path: str | None = None,
         # Redis backend options
         redis_host: str = "localhost",
         redis_port: int = 6379,
         redis_db: int = 0,
-        redis_password: Optional[str] = None,
+        redis_password: str | None = None,
         # PostgreSQL backend options
-        postgres_dsn: Optional[str] = None,
+        postgres_dsn: str | None = None,
         postgres_table: str = "agent_sessions",
         # Common options
         ttl_seconds: int = 7 * 86400,  # 7 days
@@ -105,13 +104,10 @@ class UnifiedAgentSessionManager:
             raise ValueError(f"Unknown backend: {backend}")
 
         # 内存缓存（用于快速访问）
-        self._cache: Dict[str, AgentSession] = {}
+        self._cache: dict[str, AgentSession] = {}
 
     async def get_session(
-        self,
-        session_id: str,
-        agent_name: str = "default",
-        user_id: Optional[str] = None
+        self, session_id: str, agent_name: str = "default", user_id: str | None = None
     ) -> AgentSession:
         """获取或创建会话."""
         # 先检查缓存
@@ -147,10 +143,7 @@ class UnifiedAgentSessionManager:
             session.add_run(run)
 
             # 保存到存储后端
-            await self._storage.save_session(
-                session_id,
-                self._serialize_agent_session(session)
-            )
+            await self._storage.save_session(session_id, self._serialize_agent_session(session))
 
     async def delete_session(self, session_id: str) -> bool:
         """删除会话."""
@@ -167,15 +160,14 @@ class UnifiedAgentSessionManager:
         # 清理缓存中的过期会话
         cutoff_time = time.time() - max_age_seconds
         to_delete = [
-            sid for sid, session in self._cache.items()
-            if session.updated_at < cutoff_time
+            sid for sid, session in self._cache.items() if session.updated_at < cutoff_time
         ]
         for sid in to_delete:
             del self._cache[sid]
 
         return cleaned
 
-    async def get_all_sessions(self) -> Dict[str, AgentSession]:
+    async def get_all_sessions(self) -> dict[str, AgentSession]:
         """获取所有会话."""
         session_ids = await self._storage.list_sessions()
         sessions = {}
@@ -187,7 +179,7 @@ class UnifiedAgentSessionManager:
         """关闭连接."""
         await self._storage.close()
 
-    def _serialize_agent_session(self, session: AgentSession) -> Dict[str, Any]:
+    def _serialize_agent_session(self, session: AgentSession) -> dict[str, Any]:
         """序列化会话."""
         return {
             "session_id": session.session_id,
@@ -210,12 +202,9 @@ class UnifiedAgentSessionManager:
             "updated_at": session.updated_at,
         }
 
-    def _deserialize_agent_session(self, data: Dict[str, Any]) -> AgentSession:
+    def _deserialize_agent_session(self, data: dict[str, Any]) -> AgentSession:
         """反序列化会话."""
-        runs = [
-            AgentRunRecord(**run_data)
-            for run_data in data.get("runs", [])
-        ]
+        runs = [AgentRunRecord(**run_data) for run_data in data.get("runs", [])]
         return AgentSession(
             session_id=data["session_id"],
             agent_name=data.get("agent_name", "default"),
@@ -234,14 +223,14 @@ class UnifiedTeamSessionManager:
         self,
         backend: str = "file",
         # File backend options
-        storage_path: Optional[str] = None,
+        storage_path: str | None = None,
         # Redis backend options
         redis_host: str = "localhost",
         redis_port: int = 6379,
         redis_db: int = 0,
-        redis_password: Optional[str] = None,
+        redis_password: str | None = None,
         # PostgreSQL backend options
-        postgres_dsn: Optional[str] = None,
+        postgres_dsn: str | None = None,
         postgres_table: str = "agent_sessions",
         # Common options
         ttl_seconds: int = 7 * 86400,  # 7 days
@@ -277,13 +266,10 @@ class UnifiedTeamSessionManager:
             raise ValueError(f"Unknown backend: {backend}")
 
         # 内存缓存
-        self._cache: Dict[str, TeamSession] = {}
+        self._cache: dict[str, TeamSession] = {}
 
     async def get_session(
-        self,
-        session_id: str,
-        team_name: str,
-        user_id: Optional[str] = None
+        self, session_id: str, team_name: str, user_id: str | None = None
     ) -> TeamSession:
         """获取或创建会话."""
         if session_id in self._cache:
@@ -315,10 +301,7 @@ class UnifiedTeamSessionManager:
             session = self._cache[session_id]
             session.add_run(run)
 
-            await self._storage.save_session(
-                session_id,
-                self._serialize_team_session(session)
-            )
+            await self._storage.save_session(session_id, self._serialize_team_session(session))
 
     async def delete_session(self, session_id: str) -> bool:
         """删除会话."""
@@ -334,15 +317,14 @@ class UnifiedTeamSessionManager:
 
         cutoff_time = time.time() - max_age_seconds
         to_delete = [
-            sid for sid, session in self._cache.items()
-            if session.updated_at < cutoff_time
+            sid for sid, session in self._cache.items() if session.updated_at < cutoff_time
         ]
         for sid in to_delete:
             del self._cache[sid]
 
         return cleaned
 
-    async def get_all_sessions(self) -> Dict[str, TeamSession]:
+    async def get_all_sessions(self) -> dict[str, TeamSession]:
         """获取所有会话."""
         session_ids = await self._storage.list_sessions()
         sessions = {}
@@ -354,7 +336,7 @@ class UnifiedTeamSessionManager:
         """关闭连接."""
         await self._storage.close()
 
-    def _serialize_team_session(self, session: TeamSession) -> Dict[str, Any]:
+    def _serialize_team_session(self, session: TeamSession) -> dict[str, Any]:
         """序列化会话."""
         return {
             "session_id": session.session_id,
@@ -380,12 +362,9 @@ class UnifiedTeamSessionManager:
             "updated_at": session.updated_at,
         }
 
-    def _deserialize_team_session(self, data: Dict[str, Any]) -> TeamSession:
+    def _deserialize_team_session(self, data: dict[str, Any]) -> TeamSession:
         """反序列化会话."""
-        runs = [
-            RunRecord(**run_data)
-            for run_data in data.get("runs", [])
-        ]
+        runs = [RunRecord(**run_data) for run_data in data.get("runs", [])]
         return TeamSession(
             session_id=data["session_id"],
             team_name=data.get("team_name", "default"),

@@ -1,9 +1,9 @@
 """CLI 模式的工具加载（镜像 api/deps.py 模式）。"""
+
 import os
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional
 
 from omni_agent.cli.display import Colors
 from omni_agent.core.config import settings
@@ -34,8 +34,8 @@ def suppress_output():
         os.close(devnull)
 
         # Also redirect Python's sys.stdout/stderr
-        sys.stdout = open(os.devnull, 'w')
-        sys.stderr = open(os.devnull, 'w')
+        sys.stdout = open(os.devnull, "w")  # noqa: SIM115
+        sys.stderr = open(os.devnull, "w")  # noqa: SIM115
 
         yield
     finally:
@@ -56,7 +56,7 @@ async def load_cli_tools(
     enable_skills: bool = True,
     enable_rag: bool = False,
     verbose: bool = True,
-) -> tuple[list[Tool], Optional[SkillLoader]]:
+) -> tuple[list[Tool], SkillLoader | None]:
     """Load all tools for CLI mode.
 
     Args:
@@ -70,7 +70,7 @@ async def load_cli_tools(
         Tuple of (tools list, skill_loader or None)
     """
     tools: list[Tool] = []
-    skill_loader: Optional[SkillLoader] = None
+    skill_loader: SkillLoader | None = None
     workspace_path = Path(workspace_dir)
     workspace_path.mkdir(parents=True, exist_ok=True)
 
@@ -108,7 +108,9 @@ async def load_cli_tools(
     # 3. MCP tools (if enabled)
     if enable_mcp and settings.ENABLE_MCP:
         if verbose:
-            print(f"{Colors.BRIGHT_CYAN}Loading MCP tools from: {settings.MCP_CONFIG_PATH}{Colors.RESET}")
+            print(
+                f"{Colors.BRIGHT_CYAN}Loading MCP tools from: {settings.MCP_CONFIG_PATH}{Colors.RESET}"
+            )
         try:
             if verbose:
                 # Load with output visible

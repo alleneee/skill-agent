@@ -11,14 +11,15 @@ Options:
     --version, -v          Show version
     --help, -h             Show help
 """
+
 import argparse
 import asyncio
+import contextlib
 import sys
 import termios
 import tty
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
@@ -26,11 +27,6 @@ from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
-
-from omni_agent.core.agent import Agent
-from omni_agent.core.config import settings
-from omni_agent.core.llm_client import LLMClient
-from omni_agent.schemas.message import Message
 
 from omni_agent.cli.commands import (
     AVAILABLE_COMMANDS,
@@ -44,16 +40,16 @@ from omni_agent.cli.commands import (
 from omni_agent.cli.display import (
     Colors,
     format_error,
-    format_step_info,
-    format_tool_call,
-    format_tool_result,
     print_banner,
     print_session_info,
     print_stats,
 )
 from omni_agent.cli.session_handler import CLISessionHandler
 from omni_agent.cli.tools_loader import cleanup_tools, load_cli_tools
-
+from omni_agent.core.agent import Agent
+from omni_agent.core.config import settings
+from omni_agent.core.llm_client import LLMClient
+from omni_agent.schemas.message import Message
 
 VERSION = "0.1.0"
 
@@ -75,12 +71,10 @@ class KeyboardListener:
     def stop(self):
         """Restore terminal settings."""
         if self._old_settings:
-            try:
+            with contextlib.suppress(Exception):
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self._old_settings)
-            except Exception:
-                pass
 
-    def check_key(self) -> Optional[str]:
+    def check_key(self) -> str | None:
         """Check if a key was pressed (non-blocking).
 
         Returns:
@@ -161,10 +155,10 @@ Examples:
 
 async def run_agent_cli(
     workspace_dir: Path,
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
     enable_mcp: bool = True,
     enable_skills: bool = True,
-    max_steps: Optional[int] = None,
+    max_steps: int | None = None,
     debug: bool = False,
     show_thinking: bool = True,
 ) -> None:
@@ -319,7 +313,9 @@ async def run_agent_cli(
                 command = user_input.lower()
 
                 if command in ["/exit", "/quit", "/q"]:
-                    print(f"\n{Colors.BRIGHT_YELLOW}Goodbye! Thanks for using Omni Agent{Colors.RESET}\n")
+                    print(
+                        f"\n{Colors.BRIGHT_YELLOW}Goodbye! Thanks for using Omni Agent{Colors.RESET}\n"
+                    )
                     print_stats(agent, session_start, session_handler.tool_calls_count)
                     break
 
@@ -360,7 +356,11 @@ async def run_agent_cli(
                 break
 
             # Run agents with streaming
-            print(f"\n{Colors.BRIGHT_BLUE}Agent{Colors.RESET} {Colors.DIM}>{Colors.RESET} {Colors.DIM}Thinking...{Colors.RESET}", end="", flush=True)
+            print(
+                f"\n{Colors.BRIGHT_BLUE}Agent{Colors.RESET} {Colors.DIM}>{Colors.RESET} {Colors.DIM}Thinking...{Colors.RESET}",
+                end="",
+                flush=True,
+            )
             if show_thinking:
                 print(f" {Colors.DIM}(Ctrl+O to hide thinking){Colors.RESET}", end="")
             print("\n")
@@ -378,10 +378,12 @@ async def run_agent_cli(
                 async for event in agent.run_stream():
                     # Check for Ctrl+O (ASCII 15) to toggle thinking display
                     key = kb_listener.check_key()
-                    if key == '\x0f':  # Ctrl+O
+                    if key == "\x0f":  # Ctrl+O
                         show_thinking = not show_thinking
                         status = "ON" if show_thinking else "OFF"
-                        print(f"\n{Colors.DIM}[Thinking: {status}]{Colors.RESET}", end="", flush=True)
+                        print(
+                            f"\n{Colors.DIM}[Thinking: {status}]{Colors.RESET}", end="", flush=True
+                        )
 
                     event_type = event.get("type")
                     event_data = event.get("data", {})
@@ -394,7 +396,11 @@ async def run_agent_cli(
                         if show_thinking:
                             delta = event_data.get("delta", "")
                             # Show thinking in dimmed magenta
-                            print(f"{Colors.DIM}{Colors.MAGENTA}{delta}{Colors.RESET}", end="", flush=True)
+                            print(
+                                f"{Colors.DIM}{Colors.MAGENTA}{delta}{Colors.RESET}",
+                                end="",
+                                flush=True,
+                            )
 
                     elif event_type == "content":
                         delta = event_data.get("delta", "")
@@ -421,7 +427,9 @@ async def run_agent_cli(
                             field_desc = field.get("field_description", "")
                             print(f"  {Colors.BRIGHT_CYAN}{field_name}{Colors.RESET}: {field_desc}")
                         # Note: Full human-in-the-loop requires additional handling
-                        print(f"{Colors.YELLOW}(Human-in-the-loop paused - restart to provide input){Colors.RESET}")
+                        print(
+                            f"{Colors.YELLOW}(Human-in-the-loop paused - restart to provide input){Colors.RESET}"
+                        )
 
                     elif event_type == "done":
                         content_buffer = event_data.get("message", content_buffer)

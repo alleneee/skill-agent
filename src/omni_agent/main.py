@@ -1,9 +1,11 @@
 """Agent API 的 FastAPI 应用，采用最佳实践架构。"""
+
 import warnings
+
 warnings.filterwarnings("ignore", message="Pydantic serializer warnings")
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

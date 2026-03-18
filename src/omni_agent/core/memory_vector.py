@@ -183,10 +183,7 @@ class MemoryVectorStore:
                 top_k,
             )
 
-            return [
-                (row["memory_id"], float(row["similarity"]), row["content"])
-                for row in rows
-            ]
+            return [(row["memory_id"], float(row["similarity"]), row["content"]) for row in rows]
 
     async def search(
         self,

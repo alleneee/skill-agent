@@ -29,7 +29,7 @@ async def main() -> None:
         elif isinstance(event, ToolCallEvent):
             print(f"\n[Tool] {event.title}")
 
-    print(f"Connecting to Codex CLI...")
+    print("Connecting to Codex CLI...")
     print(f"Workspace: {args.workspace}")
     print("-" * 50)
 

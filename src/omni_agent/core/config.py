@@ -25,6 +25,7 @@
     # 构建数据库连接
     dsn = settings.postgres_dsn
 """
+
 from pathlib import Path
 from typing import Any
 
@@ -59,9 +60,7 @@ class Settings(BaseSettings):
 
     # API settings
     API_V1_PREFIX: str = "/api/v1"
-    ALLOWED_ORIGINS: list[str] = Field(
-        default_factory=lambda: ["*"]
-    )
+    ALLOWED_ORIGINS: list[str] = Field(default_factory=lambda: ["*"])
 
     # LLM settings (supports 100+ providers via LiteLLM)
     # Model naming: "provider/model" e.g. "openai/gpt-4o", "anthropic/claude-3-5-sonnet-20241022"
@@ -69,11 +68,11 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = Field(default="", description="API key for LLM service")
     LLM_API_BASE: str = Field(
         default="",
-        description="Optional custom API base URL (leave empty for default provider endpoints)"
+        description="Optional custom API base URL (leave empty for default provider endpoints)",
     )
     LLM_MODEL: str = Field(
         default="anthropic/claude-3-5-sonnet-20241022",
-        description="Model name in format 'provider/model' e.g. openai/gpt-4o, anthropic/claude-3-5-sonnet-20241022"
+        description="Model name in format 'provider/model' e.g. openai/gpt-4o, anthropic/claude-3-5-sonnet-20241022",
     )
 
     # Agent settings
@@ -86,10 +85,7 @@ class Settings(BaseSettings):
 
     # MCP (Model Context Protocol) settings
     ENABLE_MCP: bool = Field(default=True, description="Enable MCP tool integration")
-    MCP_CONFIG_PATH: str = Field(
-        default="mcp.json",
-        description="Path to MCP configuration file"
-    )
+    MCP_CONFIG_PATH: str = Field(default="mcp.json", description="Path to MCP configuration file")
 
     # RAG / Knowledge Base settings
     ENABLE_RAG: bool = Field(default=True, description="Enable RAG knowledge base")
@@ -103,16 +99,10 @@ class Settings(BaseSettings):
     DASHSCOPE_API_KEY: str = Field(default="", description="DashScope API key for embeddings")
     DASHSCOPE_API_BASE: str = Field(
         default="https://dashscope.aliyuncs.com/compatible-mode/v1",
-        description="DashScope API base URL"
+        description="DashScope API base URL",
     )
-    EMBEDDING_MODEL: str = Field(
-        default="text-embedding-v4",
-        description="Embedding model name"
-    )
-    EMBEDDING_DIMENSION: int = Field(
-        default=1024,
-        description="Embedding vector dimension"
-    )
+    EMBEDDING_MODEL: str = Field(default="text-embedding-v4", description="Embedding model name")
+    EMBEDDING_DIMENSION: int = Field(default=1024, description="Embedding vector dimension")
 
     # RAG Chunking settings
     CHUNK_SIZE: int = Field(default=500, description="Text chunk size in characters")
@@ -122,30 +112,20 @@ class Settings(BaseSettings):
     # Session management settings
     ENABLE_SESSION: bool = Field(default=True, description="Enable session management")
     SESSION_BACKEND: str = Field(
-        default="file",
-        description="Session storage backend: 'file', 'redis', or 'postgres'"
+        default="file", description="Session storage backend: 'file', 'redis', or 'postgres'"
     )
     SESSION_STORAGE_PATH: str = Field(
         default="~/.omni-agents/sessions.json",
-        description="Path to session storage file (for file backend)"
+        description="Path to session storage file (for file backend)",
     )
     SESSION_MAX_AGE_DAYS: int = Field(
-        default=7,
-        ge=1,
-        le=365,
-        description="Maximum age of sessions in days before cleanup"
+        default=7, ge=1, le=365, description="Maximum age of sessions in days before cleanup"
     )
     SESSION_MAX_RUNS_PER_SESSION: int = Field(
-        default=100,
-        ge=10,
-        le=1000,
-        description="Maximum number of runs to keep per session"
+        default=100, ge=10, le=1000, description="Maximum number of runs to keep per session"
     )
     SESSION_HISTORY_RUNS: int = Field(
-        default=3,
-        ge=1,
-        le=20,
-        description="Number of recent runs to include in history context"
+        default=3, ge=1, le=20, description="Number of recent runs to include in history context"
     )
 
     # Redis session settings (when SESSION_BACKEND=redis)
@@ -157,66 +137,44 @@ class Settings(BaseSettings):
     # PostgreSQL session settings (when SESSION_BACKEND=postgres)
     # Uses POSTGRES_* settings from RAG configuration
     SESSION_POSTGRES_TABLE: str = Field(
-        default="agent_sessions",
-        description="PostgreSQL table name for sessions"
+        default="agent_sessions", description="PostgreSQL table name for sessions"
     )
 
     # Langfuse Observability settings
     LANGFUSE_ENABLED: bool = Field(
-        default=False,
-        description="Enable Langfuse tracing (replaces local debug logging)"
+        default=False, description="Enable Langfuse tracing (replaces local debug logging)"
     )
-    LANGFUSE_PUBLIC_KEY: str = Field(
-        default="",
-        description="Langfuse public key"
-    )
-    LANGFUSE_SECRET_KEY: str = Field(
-        default="",
-        description="Langfuse secret key"
-    )
+    LANGFUSE_PUBLIC_KEY: str = Field(default="", description="Langfuse public key")
+    LANGFUSE_SECRET_KEY: str = Field(default="", description="Langfuse secret key")
     LANGFUSE_HOST: str = Field(
-        default="https://cloud.langfuse.com",
-        description="Langfuse host URL (cloud or self-hosted)"
+        default="https://cloud.langfuse.com", description="Langfuse host URL (cloud or self-hosted)"
     )
     LANGFUSE_SAMPLE_RATE: float = Field(
-        default=1.0,
-        ge=0.0,
-        le=1.0,
-        description="Sampling rate for traces (0.0-1.0)"
+        default=1.0, ge=0.0, le=1.0, description="Sampling rate for traces (0.0-1.0)"
     )
     LANGFUSE_FLUSH_INTERVAL: float = Field(
-        default=5.0,
-        ge=1.0,
-        le=60.0,
-        description="Flush interval in seconds"
+        default=5.0, ge=1.0, le=60.0, description="Flush interval in seconds"
     )
 
     # Legacy run log settings (deprecated when LANGFUSE_ENABLED=true)
     ENABLE_DEBUG_LOGGING: bool = Field(
         default=False,
-        description="Enable legacy debug logging to files (ignored when LANGFUSE_ENABLED=true)"
+        description="Enable legacy debug logging to files (ignored when LANGFUSE_ENABLED=true)",
     )
     RUN_LOG_BACKEND: str = Field(
-        default="file",
-        description="Run log storage backend: 'file' or 'redis'"
+        default="file", description="Run log storage backend: 'file' or 'redis'"
     )
     RUN_LOG_DIR: str = Field(
-        default="./logs",
-        description="Directory for run log files (for file backend)"
+        default="./logs", description="Directory for run log files (for file backend)"
     )
     RUN_LOG_RETENTION_DAYS: int = Field(
-        default=30,
-        ge=1,
-        le=365,
-        description="Number of days to retain run logs"
+        default=30, ge=1, le=365, description="Number of days to retain run logs"
     )
     RUN_LOG_REDIS_PREFIX: str = Field(
-        default="agent_run:",
-        description="Redis key prefix for run logs"
+        default="agent_run:", description="Redis key prefix for run logs"
     )
     RUN_LOG_REDIS_TTL: int = Field(
-        default=86400 * 7,
-        description="TTL for run logs in Redis (seconds, default 7 days)"
+        default=86400 * 7, description="TTL for run logs in Redis (seconds, default 7 days)"
     )
 
     @property
@@ -229,96 +187,63 @@ class Settings(BaseSettings):
 
     # Spawn Agent settings
     ENABLE_SPAWN_AGENT: bool = Field(
-        default=True,
-        description="Enable spawn_agent tool for sub-agents creation"
+        default=True, description="Enable spawn_agent tool for sub-agents creation"
     )
     SPAWN_AGENT_MAX_DEPTH: int = Field(
-        default=3,
-        ge=1,
-        le=5,
-        description="Maximum nesting depth for spawned agents"
+        default=3, ge=1, le=5, description="Maximum nesting depth for spawned agents"
     )
     SPAWN_AGENT_DEFAULT_MAX_STEPS: int = Field(
-        default=15,
-        ge=5,
-        le=30,
-        description="Default max steps for spawned sub-agents"
+        default=15, ge=5, le=30, description="Default max steps for spawned sub-agents"
     )
     SPAWN_AGENT_TOKEN_LIMIT: int = Field(
-        default=50000,
-        ge=10000,
-        le=100000,
-        description="Token limit for spawned sub-agents"
+        default=50000, ge=10000, le=100000, description="Token limit for spawned sub-agents"
     )
 
     # Planning settings
     ENABLE_PLANNING: bool = Field(
-        default=False,
-        description="Enable automatic plan generation for complex tasks"
+        default=False, description="Enable automatic plan generation for complex tasks"
     )
     PLAN_COMPLEXITY_THRESHOLD: int = Field(
-        default=3,
-        ge=1,
-        le=10,
-        description="Minimum complexity score to trigger plan generation"
+        default=3, ge=1, le=10, description="Minimum complexity score to trigger plan generation"
     )
 
     # Eval settings
-    ENABLE_EVAL: bool = Field(
-        default=False,
-        description="Enable evaluation system"
-    )
+    ENABLE_EVAL: bool = Field(default=False, description="Enable evaluation system")
     EVAL_LLM_MODEL: str = Field(
-        default="",
-        description="LLM model for LLM-as-Judge grading (uses LLM_MODEL if empty)"
+        default="", description="LLM model for LLM-as-Judge grading (uses LLM_MODEL if empty)"
     )
-    EVAL_PARALLEL: int = Field(
-        default=3,
-        ge=1,
-        le=10,
-        description="Max parallel eval cases"
-    )
+    EVAL_PARALLEL: int = Field(default=3, ge=1, le=10, description="Max parallel eval cases")
     EVAL_DEFAULT_TIMEOUT: int = Field(
-        default=60,
-        ge=10,
-        le=300,
-        description="Default timeout per eval case in seconds"
+        default=60, ge=10, le=300, description="Default timeout per eval case in seconds"
     )
 
     # ACP (Agent Client Protocol) settings
     ENABLE_ACP: bool = Field(
-        default=True,
-        description="Enable ACP protocol endpoints for code editor integration"
+        default=True, description="Enable ACP protocol endpoints for code editor integration"
     )
 
     # Sandbox settings
     ENABLE_SANDBOX: bool = Field(
-        default=False,
-        description="Enable sandbox isolation for tool execution"
+        default=False, description="Enable sandbox isolation for tool execution"
     )
     SANDBOX_URL: str = Field(
-        default="http://localhost:8080",
-        description="Sandbox server URL (agents-sandbox)"
+        default="http://localhost:8080", description="Sandbox server URL (agents-sandbox)"
     )
     SANDBOX_AUTO_START: bool = Field(
-        default=False,
-        description="Auto-start sandbox Docker container if not running"
+        default=False, description="Auto-start sandbox Docker container if not running"
     )
     SANDBOX_DOCKER_IMAGE: str = Field(
         default="ghcr.io/agents-infra/sandbox:latest",
-        description="Docker image for sandbox container"
+        description="Docker image for sandbox container",
     )
     SANDBOX_TTL_SECONDS: int = Field(
         default=3600,
         ge=300,
         le=86400,
-        description="Sandbox instance TTL in seconds (1 hour default)"
+        description="Sandbox instance TTL in seconds (1 hour default)",
     )
     SANDBOX_MAX_INSTANCES: int = Field(
-        default=100,
-        ge=1,
-        le=1000,
-        description="Maximum concurrent sandbox instances"
+        default=100, ge=1, le=1000, description="Maximum concurrent sandbox instances"
     )
 
     # System prompt

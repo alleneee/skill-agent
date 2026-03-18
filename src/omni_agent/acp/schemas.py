@@ -6,28 +6,29 @@
 """
 
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
 class JsonRpcRequest(BaseModel):
     jsonrpc: str = "2.0"
-    id: Optional[Union[int, str]] = None
+    id: int | str | None = None
     method: str
-    params: Optional[dict[str, Any]] = None
+    params: dict[str, Any] | None = None
 
 
 class JsonRpcError(BaseModel):
     code: int
     message: str
-    data: Optional[Any] = None
+    data: Any | None = None
 
 
 class JsonRpcResponse(BaseModel):
     jsonrpc: str = "2.0"
-    id: Optional[Union[int, str]] = None
-    result: Optional[Any] = None
-    error: Optional[JsonRpcError] = None
+    id: int | str | None = None
+    result: Any | None = None
+    error: JsonRpcError | None = None
 
 
 class FsCapabilities(BaseModel):
@@ -39,7 +40,7 @@ class FsCapabilities(BaseModel):
 
 
 class ClientCapabilities(BaseModel):
-    fs: Optional[FsCapabilities] = None
+    fs: FsCapabilities | None = None
     terminal: bool = False
 
 
@@ -60,8 +61,8 @@ class McpCapabilities(BaseModel):
 
 class AgentCapabilities(BaseModel):
     load_session: bool = Field(False, alias="loadSession")
-    prompt_capabilities: Optional[PromptCapabilities] = Field(None, alias="promptCapabilities")
-    mcp: Optional[McpCapabilities] = None
+    prompt_capabilities: PromptCapabilities | None = Field(None, alias="promptCapabilities")
+    mcp: McpCapabilities | None = None
 
     class Config:
         populate_by_name = True
@@ -69,14 +70,14 @@ class AgentCapabilities(BaseModel):
 
 class AgentInfo(BaseModel):
     name: str
-    title: Optional[str] = None
-    version: Optional[str] = None
+    title: str | None = None
+    version: str | None = None
 
 
 class InitializeRequest(BaseModel):
     protocol_version: str = Field(..., alias="protocolVersion")
-    client_info: Optional[dict[str, str]] = Field(None, alias="clientInfo")
-    client_capabilities: Optional[ClientCapabilities] = Field(None, alias="clientCapabilities")
+    client_info: dict[str, str] | None = Field(None, alias="clientInfo")
+    client_capabilities: ClientCapabilities | None = Field(None, alias="clientCapabilities")
 
     class Config:
         populate_by_name = True
@@ -84,7 +85,9 @@ class InitializeRequest(BaseModel):
 
 class InitializeResponse(BaseModel):
     protocol_version: int = Field(1, alias="protocolVersion")
-    agent_capabilities: AgentCapabilities = Field(default_factory=lambda: AgentCapabilities(), alias="agentCapabilities")
+    agent_capabilities: AgentCapabilities = Field(
+        default_factory=lambda: AgentCapabilities(), alias="agentCapabilities"
+    )
     agent_info: AgentInfo = Field(..., alias="agentInfo")
     auth_methods: list[str] = Field(default_factory=list, alias="authMethods")
 
@@ -93,10 +96,10 @@ class InitializeResponse(BaseModel):
 
 
 class McpServer(BaseModel):
-    url: Optional[str] = None
-    command: Optional[str] = None
-    args: Optional[list[str]] = None
-    env: Optional[dict[str, str]] = None
+    url: str | None = None
+    command: str | None = None
+    args: list[str] | None = None
+    env: dict[str, str] | None = None
 
 
 class SessionNewRequest(BaseModel):
@@ -110,7 +113,7 @@ class SessionNewRequest(BaseModel):
 class SessionMode(BaseModel):
     id: str
     name: str
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class SessionModeState(BaseModel):
@@ -123,7 +126,7 @@ class SessionModeState(BaseModel):
 
 class SessionNewResponse(BaseModel):
     session_id: str = Field(..., alias="sessionId")
-    modes: Optional[SessionModeState] = None
+    modes: SessionModeState | None = None
 
     class Config:
         populate_by_name = True
@@ -139,13 +142,13 @@ class ContentBlockType(str, Enum):
 class TextContent(BaseModel):
     type: str = "text"
     text: str
-    annotations: Optional[Any] = None
+    annotations: Any | None = None
 
 
 class ResourceContent(BaseModel):
     uri: str
-    text: Optional[str] = None
-    mime_type: Optional[str] = Field(None, alias="mimeType")
+    text: str | None = None
+    mime_type: str | None = Field(None, alias="mimeType")
 
     class Config:
         populate_by_name = True
@@ -159,16 +162,16 @@ class ResourceBlock(BaseModel):
 class ResourceLinkBlock(BaseModel):
     type: str = "resourceLink"
     uri: str
-    name: Optional[str] = None
-    title: Optional[str] = None
-    description: Optional[str] = None
-    mime_type: Optional[str] = Field(None, alias="mimeType")
+    name: str | None = None
+    title: str | None = None
+    description: str | None = None
+    mime_type: str | None = Field(None, alias="mimeType")
 
     class Config:
         populate_by_name = True
 
 
-ContentBlock = Union[TextContent, ResourceBlock, ResourceLinkBlock]
+ContentBlock = TextContent | ResourceBlock | ResourceLinkBlock
 
 
 class SessionPromptRequest(BaseModel):
@@ -217,13 +220,13 @@ class ToolCallStatus(str, Enum):
 
 class ToolCallLocation(BaseModel):
     path: str
-    line: Optional[int] = None
+    line: int | None = None
 
 
 class DiffContent(BaseModel):
     type: str = "diff"
     path: str
-    old_text: Optional[str] = Field(None, alias="oldText")
+    old_text: str | None = Field(None, alias="oldText")
     new_text: str = Field(..., alias="newText")
 
     class Config:
@@ -238,12 +241,12 @@ class ToolCallContent(BaseModel):
 class ToolCall(BaseModel):
     tool_call_id: str = Field(..., alias="toolCallId")
     title: str
-    kind: Optional[ToolKind] = None
-    status: Optional[ToolCallStatus] = None
-    content: list[Union[ToolCallContent, DiffContent]] = Field(default_factory=list)
+    kind: ToolKind | None = None
+    status: ToolCallStatus | None = None
+    content: list[ToolCallContent | DiffContent] = Field(default_factory=list)
     locations: list[ToolCallLocation] = Field(default_factory=list)
-    raw_input: Optional[dict[str, Any]] = Field(None, alias="rawInput")
-    raw_output: Optional[Any] = Field(None, alias="rawOutput")
+    raw_input: dict[str, Any] | None = Field(None, alias="rawInput")
+    raw_output: Any | None = Field(None, alias="rawOutput")
 
     class Config:
         populate_by_name = True
@@ -251,13 +254,13 @@ class ToolCall(BaseModel):
 
 class ToolCallUpdate(BaseModel):
     tool_call_id: str = Field(..., alias="toolCallId")
-    status: Optional[ToolCallStatus] = None
-    content: Optional[list[Union[ToolCallContent, DiffContent]]] = None
-    title: Optional[str] = None
-    kind: Optional[ToolKind] = None
-    locations: Optional[list[ToolCallLocation]] = None
-    raw_input: Optional[dict[str, Any]] = Field(None, alias="rawInput")
-    raw_output: Optional[Any] = Field(None, alias="rawOutput")
+    status: ToolCallStatus | None = None
+    content: list[ToolCallContent | DiffContent] | None = None
+    title: str | None = None
+    kind: ToolKind | None = None
+    locations: list[ToolCallLocation] | None = None
+    raw_input: dict[str, Any] | None = Field(None, alias="rawInput")
+    raw_output: Any | None = Field(None, alias="rawOutput")
 
     class Config:
         populate_by_name = True

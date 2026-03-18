@@ -91,23 +91,17 @@ class Memory:
     def append_profile(self, text: str) -> None:
         current = self.read_profile()
         separator = "\n" if current and not current.endswith("\n") else ""
-        self.profile_path.write_text(
-            current + separator + text + "\n", encoding="utf-8"
-        )
+        self.profile_path.write_text(current + separator + text + "\n", encoding="utf-8")
 
     def append_habit(self, text: str) -> None:
         current = self.read_habit()
         separator = "\n" if current and not current.endswith("\n") else ""
-        self.habit_path.write_text(
-            current + separator + text + "\n", encoding="utf-8"
-        )
+        self.habit_path.write_text(current + separator + text + "\n", encoding="utf-8")
 
     def append_context(self, text: str) -> None:
         current = self.read_context()
         separator = "\n" if current and not current.endswith("\n") else ""
-        self.context_path.write_text(
-            current + separator + text + "\n", encoding="utf-8"
-        )
+        self.context_path.write_text(current + separator + text + "\n", encoding="utf-8")
 
     # ── 元数据 ──
 
@@ -193,11 +187,13 @@ class Memory:
         self._ensure_dirs()
         if task:
             self.write_context(f"# 当前任务\n\n{task}\n")
-        self._save_meta({
-            "created_at": now_str(),
-            "updated_at": now_str(),
-            "round_count": 0,
-        })
+        self._save_meta(
+            {
+                "created_at": now_str(),
+                "updated_at": now_str(),
+                "round_count": 0,
+            }
+        )
 
     def delete(self) -> None:
         shutil.rmtree(self.session_dir, ignore_errors=True)
@@ -261,8 +257,7 @@ class Memory:
 
                 task_items = memories.get("task", [])
                 active_tasks = [
-                    t for t in task_items
-                    if t.get("metadata", {}).get("status") != "completed"
+                    t for t in task_items if t.get("metadata", {}).get("status") != "completed"
                 ]
                 if active_tasks:
                     context_parts.append("# 活跃任务\n")
@@ -278,11 +273,13 @@ class Memory:
             meta = data.get("meta", {})
             session_mems = memories.get("session", [])
             round_count = len(session_mems) // 2
-            self._save_meta({
-                "created_at": meta.get("created_at", now_str()),
-                "updated_at": meta.get("updated_at", now_str()),
-                "round_count": round_count,
-            })
+            self._save_meta(
+                {
+                    "created_at": meta.get("created_at", now_str()),
+                    "updated_at": meta.get("updated_at", now_str()),
+                    "round_count": round_count,
+                }
+            )
 
             old_path.rename(old_path.with_suffix(".json.bak"))
 
@@ -325,8 +322,7 @@ class MemoryManager:
         if not self.base_dir.exists():
             return []
         return [
-            d.name for d in self.base_dir.iterdir()
-            if d.is_dir() and not d.name.startswith(".")
+            d.name for d in self.base_dir.iterdir() if d.is_dir() and not d.name.startswith(".")
         ]
 
     def delete_user(self, user_id: str) -> bool:
@@ -338,6 +334,7 @@ class MemoryManager:
 
     def cleanup_expired(self, max_age_days: int = 30) -> int:
         from datetime import timedelta
+
         cutoff = datetime.now() - timedelta(days=max_age_days)
         removed = 0
 

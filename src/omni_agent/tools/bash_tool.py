@@ -1,7 +1,9 @@
 """Bash 命令执行工具。"""
+
 import asyncio
 import subprocess
 from typing import Any
+
 from .base import Tool, ToolResult
 
 
@@ -66,10 +68,8 @@ When using the bash tool:
             )
 
             try:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=timeout
-                )
-            except asyncio.TimeoutError:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+            except TimeoutError:
                 process.kill()
                 await process.wait()
                 return ToolResult(

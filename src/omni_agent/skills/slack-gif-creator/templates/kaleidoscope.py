@@ -5,18 +5,19 @@ Kaleidoscope Effect - Create mirror/rotation effects.
 Apply kaleidoscope effects to frames or objects for psychedelic visuals.
 """
 
+import math
 import sys
 from pathlib import Path
-import math
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from PIL import Image, ImageOps, ImageDraw
 import numpy as np
+from PIL import Image, ImageDraw, ImageOps
 
 
-def apply_kaleidoscope(frame: Image.Image, segments: int = 8,
-                       center: tuple[int, int] | None = None) -> Image.Image:
+def apply_kaleidoscope(
+    frame: Image.Image, segments: int = 8, center: tuple[int, int] | None = None
+) -> Image.Image:
     """
     Apply kaleidoscope effect by mirroring/rotating frame sections.
 
@@ -34,7 +35,7 @@ def apply_kaleidoscope(frame: Image.Image, segments: int = 8,
         center = (width // 2, height // 2)
 
     # Create output frame
-    output = Image.new('RGB', (width, height))
+    Image.new("RGB", (width, height))
 
     # Calculate angle per segment
     angle_per_segment = 360 / segments
@@ -83,7 +84,7 @@ def apply_kaleidoscope(frame: Image.Image, segments: int = 8,
     return Image.fromarray(output_array)
 
 
-def apply_simple_mirror(frame: Image.Image, mode: str = 'quad') -> Image.Image:
+def apply_simple_mirror(frame: Image.Image, mode: str = "quad") -> Image.Image:
     """
     Apply simple mirror effect (faster than full kaleidoscope).
 
@@ -97,7 +98,7 @@ def apply_simple_mirror(frame: Image.Image, mode: str = 'quad') -> Image.Image:
     width, height = frame.size
     center_x, center_y = width // 2, height // 2
 
-    if mode == 'horizontal':
+    if mode == "horizontal":
         # Mirror left half to right
         left_half = frame.crop((0, 0, center_x, height))
         left_flipped = ImageOps.mirror(left_half)
@@ -105,7 +106,7 @@ def apply_simple_mirror(frame: Image.Image, mode: str = 'quad') -> Image.Image:
         result.paste(left_flipped, (center_x, 0))
         return result
 
-    elif mode == 'vertical':
+    elif mode == "vertical":
         # Mirror top half to bottom
         top_half = frame.crop((0, 0, width, center_y))
         top_flipped = ImageOps.flip(top_half)
@@ -113,11 +114,11 @@ def apply_simple_mirror(frame: Image.Image, mode: str = 'quad') -> Image.Image:
         result.paste(top_flipped, (0, center_y))
         return result
 
-    elif mode == 'quad':
+    elif mode == "quad":
         # 4-way mirror (top-left quadrant mirrored to all)
         quad = frame.crop((0, 0, center_x, center_y))
 
-        result = Image.new('RGB', (width, height))
+        result = Image.new("RGB", (width, height))
 
         # Top-left (original)
         result.paste(quad, (0, 0))
@@ -143,7 +144,7 @@ def create_kaleidoscope_animation(
     segments: int = 8,
     rotation_speed: float = 1.0,
     width: int = 480,
-    height: int = 480
+    height: int = 480,
 ) -> list[Image.Image]:
     """
     Create animated kaleidoscope effect.
@@ -163,14 +164,15 @@ def create_kaleidoscope_animation(
 
     # Create demo pattern if no base frame
     if base_frame is None:
-        base_frame = Image.new('RGB', (width, height), (255, 255, 255))
+        base_frame = Image.new("RGB", (width, height), (255, 255, 255))
         draw = ImageDraw.Draw(base_frame)
 
         # Draw some colored shapes
         from core.color_palettes import get_palette
-        palette = get_palette('vibrant')
 
-        colors = [palette['primary'], palette['secondary'], palette['accent']]
+        palette = get_palette("vibrant")
+
+        colors = [palette["primary"], palette["secondary"], palette["accent"]]
 
         for i, color in enumerate(colors):
             x = width // 2 + int(100 * math.cos(i * 2 * math.pi / 3))
@@ -193,7 +195,7 @@ def create_kaleidoscope_animation(
 
 
 # Example usage
-if __name__ == '__main__':
+if __name__ == "__main__":
     from core.gif_builder import GIFBuilder
 
     print("Creating kaleidoscope GIF...")
@@ -201,11 +203,7 @@ if __name__ == '__main__':
     builder = GIFBuilder(width=480, height=480, fps=20)
 
     # Create kaleidoscope animation
-    frames = create_kaleidoscope_animation(
-        num_frames=40,
-        segments=8,
-        rotation_speed=0.5
-    )
+    frames = create_kaleidoscope_animation(num_frames=40, segments=8, rotation_speed=0.5)
 
     builder.add_frames(frames)
-    builder.save('kaleidoscope_test.gif', num_colors=128)
+    builder.save("kaleidoscope_test.gif", num_colors=128)

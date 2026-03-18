@@ -7,26 +7,24 @@
 import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from omni_agent.core.agent import Agent
 from omni_agent.core.llm_client import LLMClient
-from omni_agent.tools.base import Tool
-from omni_agent.tools.file_tools import (
-    ReadTool,
-    WriteTool,
-    EditTool,
-    ListDirTool,
-    GlobTool,
-    GrepTool,
-)
-from omni_agent.tools.bash_tool import BashTool
-from omni_agent.tools.note_tool import SessionNoteTool, RecallNoteTool
-from omni_agent.tools.user_input_tool import GetUserInputTool
-from omni_agent.tools.mcp_loader import load_mcp_tools_async
 from omni_agent.skills.skill_loader import SkillLoader
 from omni_agent.skills.skill_tool import GetSkillTool
-
+from omni_agent.tools.base import Tool
+from omni_agent.tools.bash_tool import BashTool
+from omni_agent.tools.file_tools import (
+    EditTool,
+    GlobTool,
+    GrepTool,
+    ListDirTool,
+    ReadTool,
+    WriteTool,
+)
+from omni_agent.tools.mcp_loader import load_mcp_tools_async
+from omni_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
+from omni_agent.tools.user_input_tool import GetUserInputTool
 
 GENERAL_SYSTEM_PROMPT = """你是一个功能强大的AI助手。
 
@@ -49,8 +47,8 @@ class LLMConfig:
     """LLM 配置"""
 
     model: str = "openai/gpt-4o"
-    api_key: Optional[str] = None
-    api_base: Optional[str] = None
+    api_key: str | None = None
+    api_base: str | None = None
     timeout: float = 120.0
 
 
@@ -58,15 +56,15 @@ class LLMConfig:
 class GeneralAgentConfig:
     """通用 Agent 配置"""
 
-    llm: Optional[LLMConfig] = None
+    llm: LLMConfig | None = None
     workspace_dir: str = "./workspace"
-    mcp_config_path: Optional[str] = "mcp.json"
-    skills_dir: Optional[str] = None
+    mcp_config_path: str | None = "mcp.json"
+    skills_dir: str | None = None
     max_steps: int = 50
     token_limit: int = 120000
     enable_user_input: bool = True
     enable_notes: bool = True
-    system_prompt: Optional[str] = None
+    system_prompt: str | None = None
     extra_tools: list[Tool] = field(default_factory=list)
 
 
@@ -107,7 +105,7 @@ async def _load_mcp_tools(mcp_config_path: str) -> list[Tool]:
         return []
 
 
-def _load_skills(skills_dir: str) -> tuple[Optional[SkillLoader], list[Tool]]:
+def _load_skills(skills_dir: str) -> tuple[SkillLoader | None, list[Tool]]:
     """加载 Skills"""
     if not skills_dir or not Path(skills_dir).exists():
         return None, []
@@ -123,7 +121,7 @@ def _load_skills(skills_dir: str) -> tuple[Optional[SkillLoader], list[Tool]]:
 
 def _build_system_prompt(
     base_prompt: str,
-    skill_loader: Optional[SkillLoader],
+    skill_loader: SkillLoader | None,
     workspace_dir: str,
 ) -> str:
     """构建系统提示"""
@@ -150,7 +148,9 @@ def _create_llm_client(llm_config: LLMConfig) -> LLMClient:
 
     api_key = llm_config.api_key or os.getenv("LLM_API_KEY", "")
     if not api_key:
-        raise ValueError("LLM API key is required. Set via LLMConfig.api_key or LLM_API_KEY env var")
+        raise ValueError(
+            "LLM API key is required. Set via LLMConfig.api_key or LLM_API_KEY env var"
+        )
 
     return LLMClient(
         api_key=api_key,
@@ -161,10 +161,10 @@ def _create_llm_client(llm_config: LLMConfig) -> LLMClient:
 
 
 async def create_general_agent(
-    llm_client: Optional[LLMClient] = None,
-    config: Optional[GeneralAgentConfig] = None,
-    user_id: Optional[str] = None,
-    session_id: Optional[str] = None,
+    llm_client: LLMClient | None = None,
+    config: GeneralAgentConfig | None = None,
+    user_id: str | None = None,
+    session_id: str | None = None,
 ) -> Agent:
     """
     创建通用 Agent
@@ -234,10 +234,10 @@ async def create_general_agent(
 
 
 def create_general_agent_sync(
-    llm_client: Optional[LLMClient] = None,
-    config: Optional[GeneralAgentConfig] = None,
-    user_id: Optional[str] = None,
-    session_id: Optional[str] = None,
+    llm_client: LLMClient | None = None,
+    config: GeneralAgentConfig | None = None,
+    user_id: str | None = None,
+    session_id: str | None = None,
 ) -> Agent:
     """
     同步版本的 create_general_agent

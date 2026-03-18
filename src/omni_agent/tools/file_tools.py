@@ -8,6 +8,7 @@
 - glob: 按模式查找文件
 - grep: 支持正则表达式的文件内容搜索
 """
+
 import re
 from datetime import datetime
 from pathlib import Path
@@ -56,7 +57,9 @@ class ReadTool(Tool):
             "required": ["path"],
         }
 
-    async def execute(self, path: str, offset: int | None = None, limit: int | None = None) -> ToolResult:
+    async def execute(
+        self, path: str, offset: int | None = None, limit: int | None = None
+    ) -> ToolResult:
         """执行文件读取。"""
         try:
             file_path = Path(path)
@@ -439,7 +442,11 @@ class GrepTool(Tool):
 
                     for i, line in enumerate(lines, 1):
                         if regex.search(line):
-                            rel_path = file_path.relative_to(self.workspace_dir) if file_path.is_relative_to(self.workspace_dir) else file_path
+                            rel_path = (
+                                file_path.relative_to(self.workspace_dir)
+                                if file_path.is_relative_to(self.workspace_dir)
+                                else file_path
+                            )
 
                             if context > 0:
                                 start = max(0, i - 1 - context)
@@ -447,7 +454,7 @@ class GrepTool(Tool):
                                 ctx_lines = []
                                 for j in range(start, end):
                                     prefix = ">" if j == i - 1 else " "
-                                    ctx_lines.append(f"{prefix} {j+1:4d}| {lines[j]}")
+                                    ctx_lines.append(f"{prefix} {j + 1:4d}| {lines[j]}")
                                 results.append(f"{rel_path}:\n" + "\n".join(ctx_lines))
                             else:
                                 results.append(f"{rel_path}:{i}: {line.strip()}")

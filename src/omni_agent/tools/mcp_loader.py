@@ -9,14 +9,15 @@
 
 官方 SDK 文档：https://github.com/modelcontextprotocol/python-sdk
 """
+
 import json
 from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any, Literal
 
 from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
 from mcp.client.sse import sse_client
+from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamablehttp_client
 
 from .base import Tool, ToolResult
@@ -93,27 +94,25 @@ class MCPTool(Tool):
             content_parts = []
             for item in result.content:
                 # Check if item has text attribute (TextContent)
-                if hasattr(item, 'text'):
+                if hasattr(item, "text"):
                     content_parts.append(item.text)
                 else:
                     # Fallback for other content types
                     content_parts.append(str(item))
 
-            content_str = '\n'.join(content_parts)
+            content_str = "\n".join(content_parts)
 
             # Check for error status (official SDK: result.isError)
-            is_error = result.isError if hasattr(result, 'isError') else False
+            is_error = result.isError if hasattr(result, "isError") else False
 
             return ToolResult(
                 success=not is_error,
                 content=content_str,
-                error=None if not is_error else "Tool returned error"
+                error=None if not is_error else "Tool returned error",
             )
         except Exception as e:
             return ToolResult(
-                success=False,
-                content="",
-                error=f"MCP tool execution failed: {str(e)}"
+                success=False, content="", error=f"MCP tool execution failed: {str(e)}"
             )
 
 
@@ -208,9 +207,7 @@ class MCPServerConnection:
                     raise ValueError(f"Server '{self.name}': command required for stdio transport")
 
                 server_params = StdioServerParameters(
-                    command=self.command,
-                    args=self.args,
-                    env=self.env if self.env else None
+                    command=self.command, args=self.args, env=self.env if self.env else None
                 )
 
                 # Enter stdio client context
@@ -262,17 +259,19 @@ class MCPServerConnection:
 
             # Wrap each tool
             for tool in tools_list.tools:
-                parameters = tool.inputSchema if hasattr(tool, 'inputSchema') else {}
+                parameters = tool.inputSchema if hasattr(tool, "inputSchema") else {}
 
                 mcp_tool = MCPTool(
                     name=tool.name,
                     description=tool.description or "",
                     parameters=parameters,
-                    session=session
+                    session=session,
                 )
                 self.tools.append(mcp_tool)
 
-            print(f"✓ Connected to MCP server '{self.name}' ({self.transport}) - loaded {len(self.tools)} tools")
+            print(
+                f"✓ Connected to MCP server '{self.name}' ({self.transport}) - loaded {len(self.tools)} tools"
+            )
             for tool in self.tools:
                 desc = tool.description[:60] if len(tool.description) > 60 else tool.description
                 print(f"  - {tool.name}: {desc}...")
@@ -285,6 +284,7 @@ class MCPServerConnection:
                 await self.exit_stack.aclose()
                 self.exit_stack = None
             import traceback
+
             traceback.print_exc()
             return False
 
@@ -442,6 +442,7 @@ async def load_mcp_tools_async(config_path: str = "mcp.json") -> list[Tool]:
     except Exception as e:
         print(f"❌ Error loading MCP config: {e}")
         import traceback
+
         traceback.print_exc()
         return []
 

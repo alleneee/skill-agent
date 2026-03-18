@@ -4,12 +4,12 @@ Supports:
 - FileStorage: Local file storage (default)
 - RedisStorage: Redis storage for cloud debugging
 """
+
 import json
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
 
 from omni_agent.core.config import settings
 
@@ -28,7 +28,7 @@ class RunLogStorage(ABC):
         pass
 
     @abstractmethod
-    async def get_run_summary(self, run_id: str) -> Optional[dict]:
+    async def get_run_summary(self, run_id: str) -> dict | None:
         pass
 
     @abstractmethod
@@ -49,7 +49,7 @@ class NullRunLogStorage(RunLogStorage):
     async def list_runs(self, limit: int = 50) -> list[dict]:
         return []
 
-    async def get_run_summary(self, run_id: str) -> Optional[dict]:
+    async def get_run_summary(self, run_id: str) -> dict | None:
         return None
 
     async def delete_run(self, run_id: str) -> bool:
@@ -91,7 +91,7 @@ class FileRunLogStorage(RunLogStorage):
         if not run_file.exists():
             return []
         events = []
-        with open(run_file, "r", encoding="utf-8") as f:
+        with open(run_file, encoding="utf-8") as f:
             for line in f:
                 if line.strip():
                     events.append(json.loads(line))
@@ -99,11 +99,9 @@ class FileRunLogStorage(RunLogStorage):
 
     async def list_runs(self, limit: int = 50) -> list[dict]:
         runs = []
-        files = sorted(
-            self.log_dir.glob("*.jsonl"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True
-        )[:limit]
+        files = sorted(self.log_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)[
+            :limit
+        ]
 
         for f in files:
             run_id = f.stem
@@ -112,7 +110,7 @@ class FileRunLogStorage(RunLogStorage):
                 runs.append(summary)
         return runs
 
-    async def get_run_summary(self, run_id: str) -> Optional[dict]:
+    async def get_run_summary(self, run_id: str) -> dict | None:
         events = await self.get_events(run_id)
         if not events:
             return None
@@ -131,7 +129,7 @@ class FileRunLogStorage(RunLogStorage):
             "total_tool_calls": total_tools,
             "total_events": len(events),
             "success": completion is not None,
-            "final_token_count": last_event.get("data", {}).get("token_count", 0)
+            "final_token_count": last_event.get("data", {}).get("token_count", 0),
         }
 
     async def delete_run(self, run_id: str) -> bool:
@@ -150,7 +148,7 @@ class RedisRunLogStorage(RunLogStorage):
         db: int = 0,
         password: str = "",
         prefix: str = "agent_run:",
-        ttl: int = 86400 * 7
+        ttl: int = 86400 * 7,
     ):
         self.prefix = prefix
         self.ttl = ttl
@@ -163,12 +161,13 @@ class RedisRunLogStorage(RunLogStorage):
     async def _get_redis(self):
         if self._redis is None:
             import redis.asyncio as redis
+
             self._redis = redis.Redis(
                 host=self._host,
                 port=self._port,
                 db=self._db,
                 password=self._password or None,
-                decode_responses=True
+                decode_responses=True,
             )
         return self._redis
 
@@ -205,7 +204,7 @@ class RedisRunLogStorage(RunLogStorage):
                 runs.append(summary)
         return runs
 
-    async def get_run_summary(self, run_id: str) -> Optional[dict]:
+    async def get_run_summary(self, run_id: str) -> dict | None:
         events = await self.get_events(run_id)
         if not events:
             return None
@@ -224,7 +223,7 @@ class RedisRunLogStorage(RunLogStorage):
             "total_tool_calls": total_tools,
             "total_events": len(events),
             "success": completion is not None,
-            "final_token_count": last_event.get("data", {}).get("token_count", 0)
+            "final_token_count": last_event.get("data", {}).get("token_count", 0),
         }
 
     async def delete_run(self, run_id: str) -> bool:
@@ -252,15 +251,14 @@ def create_run_log_storage() -> RunLogStorage:
             db=settings.SESSION_REDIS_DB,
             password=settings.SESSION_REDIS_PASSWORD,
             prefix=settings.RUN_LOG_REDIS_PREFIX,
-            ttl=settings.RUN_LOG_REDIS_TTL
+            ttl=settings.RUN_LOG_REDIS_TTL,
         )
     return FileRunLogStorage(
-        log_dir=settings.RUN_LOG_DIR,
-        retention_days=settings.RUN_LOG_RETENTION_DAYS
+        log_dir=settings.RUN_LOG_DIR, retention_days=settings.RUN_LOG_RETENTION_DAYS
     )
 
 
-_storage: Optional[RunLogStorage] = None
+_storage: RunLogStorage | None = None
 
 
 async def get_run_log_storage() -> RunLogStorage:

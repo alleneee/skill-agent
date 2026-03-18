@@ -1,14 +1,13 @@
 """追踪查看器，用于分析工作流执行。"""
+
 import json
 from pathlib import Path
-from typing import Optional
-from datetime import datetime
 
 
 class TraceViewer:
     """View and analyze trace logs."""
 
-    def __init__(self, trace_dir: Optional[str] = None):
+    def __init__(self, trace_dir: str | None = None):
         """Initialize viewer.
 
         Args:
@@ -26,19 +25,19 @@ class TraceViewer:
             return
 
         traces = sorted(
-            self.trace_dir.glob("trace_*.jsonl"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True
+            self.trace_dir.glob("trace_*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True
         )[:limit]
 
-        print(f"\n{'='*80}")
-        print(f"Recent Traces (showing {len(traces)} of {len(list(self.trace_dir.glob('trace_*.jsonl')))})")
-        print(f"{'='*80}\n")
+        print(f"\n{'=' * 80}")
+        print(
+            f"Recent Traces (showing {len(traces)} of {len(list(self.trace_dir.glob('trace_*.jsonl')))})"
+        )
+        print(f"{'=' * 80}\n")
 
         for i, trace_file in enumerate(traces, 1):
             summary_file = trace_file.with_suffix(".summary.json")
             if summary_file.exists():
-                with open(summary_file, "r") as f:
+                with open(summary_file) as f:
                     summary = json.load(f)
                     print(f"{i}. {trace_file.name}")
                     print(f"   Trace ID: {summary.get('trace_id', 'N/A')}")
@@ -49,7 +48,7 @@ class TraceViewer:
                     print()
             else:
                 print(f"{i}. {trace_file.name}")
-                print(f"   (Summary not available)")
+                print("   (Summary not available)")
                 print()
 
     def view_trace(self, trace_file: str):
@@ -63,27 +62,29 @@ class TraceViewer:
         if summary_path.exists():
             self._print_summary(summary_path)
 
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print("Event Timeline")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
 
-        with open(trace_path, "r") as f:
+        with open(trace_path) as f:
             for line in f:
                 event = json.loads(line)
                 self._print_event(event)
 
     def _print_summary(self, summary_path: Path):
         """Print trace summary."""
-        with open(summary_path, "r") as f:
+        with open(summary_path) as f:
             summary = json.load(f)
 
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print(f"Trace Summary: {summary.get('trace_id', 'N/A')}")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
 
         print(f"Duration: {summary.get('total_duration_seconds', 0):.2f}s")
         print(f"Total Events: {summary.get('total_events', 0)}")
-        print(f"Total Tokens: {summary.get('total_tokens', 0)} (input: {summary.get('total_input_tokens', 0)}, output: {summary.get('total_output_tokens', 0)})")
+        print(
+            f"Total Tokens: {summary.get('total_tokens', 0)} (input: {summary.get('total_input_tokens', 0)}, output: {summary.get('total_output_tokens', 0)})"
+        )
         print()
 
         print("Event Counts:")
@@ -97,7 +98,9 @@ class TraceViewer:
             for agent in agents:
                 status = "+" if agent.get("success") else "x"
                 print(f"  {status} {agent.get('agent_name')} ({agent.get('agent_id')})")
-                print(f"      Steps: {agent.get('steps', 0)}, Time: {agent.get('elapsed', 0):.2f}s, Tokens: {agent.get('total_tokens', 0)}")
+                print(
+                    f"      Steps: {agent.get('steps', 0)}, Time: {agent.get('elapsed', 0):.2f}s, Tokens: {agent.get('total_tokens', 0)}"
+                )
             print()
 
         tasks = summary.get("tasks", [])
@@ -142,7 +145,9 @@ class TraceViewer:
         elif event_type == "agent_end":
             status = "✓" if event.get("success") else "✗"
             print(f"   {status} [{timestamp}] AGENT END: {event.get('agent_name')}")
-            print(f"      Steps: {event.get('steps', 0)}, Time: {event.get('elapsed_seconds', 0):.2f}s")
+            print(
+                f"      Steps: {event.get('steps', 0)}, Time: {event.get('elapsed_seconds', 0):.2f}s"
+            )
             print()
 
         elif event_type == "task_start":
@@ -154,7 +159,9 @@ class TraceViewer:
 
         elif event_type == "task_end":
             print(f"   ✓ [{timestamp}] TASK END: {event.get('task_id')}")
-            print(f"      Status: {event.get('status')}, Time: {event.get('elapsed_seconds', 0):.2f}s")
+            print(
+                f"      Status: {event.get('status')}, Time: {event.get('elapsed_seconds', 0):.2f}s"
+            )
             print()
 
         elif event_type == "delegation":
@@ -174,7 +181,9 @@ class TraceViewer:
 
         elif event_type == "llm_call":
             print(f"   🤖 [{timestamp}] LLM: {event.get('model')}")
-            print(f"      Tokens: {event.get('tokens', 0)}, Time: {event.get('elapsed_seconds', 0):.2f}s")
+            print(
+                f"      Tokens: {event.get('tokens', 0)}, Time: {event.get('elapsed_seconds', 0):.2f}s"
+            )
 
     def visualize_flow(self, trace_file: str):
         """Generate ASCII flow visualization."""
@@ -183,12 +192,12 @@ class TraceViewer:
             print(f"Trace file not found: {trace_file}")
             return
 
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print("Workflow Flow Visualization")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
 
         events = []
-        with open(trace_path, "r") as f:
+        with open(trace_path) as f:
             for line in f:
                 events.append(json.loads(line))
 

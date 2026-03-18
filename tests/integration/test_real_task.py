@@ -18,7 +18,6 @@ from omni_agent.core.llm_client import LLMClient
 from omni_agent.tools.file_tools import ReadTool
 from omni_agent.tools.spawn_agent_tool import SpawnAgentTool
 
-
 SYSTEM_PROMPT = """你是一个代码质量分析协调员。
 
 当用户要求分析代码时，你应该：
@@ -200,7 +199,9 @@ async def run_simple_task():
     agent.add_user_message(task)
     result, logs = await agent.run()
 
-    spawn_calls = [l for l in logs if l.get("type") == "tool_call" and l.get("tool") == "spawn_agent"]
+    spawn_calls = [
+        l for l in logs if l.get("type") == "tool_call" and l.get("tool") == "spawn_agent"
+    ]
 
     print(f"\nSpawn calls: {len(spawn_calls)}")
     print(f"\nResult:\n{result[:500]}...")
@@ -217,9 +218,6 @@ if __name__ == "__main__":
     parser.add_argument("--simple", action="store_true", help="Run simple single-spawn test")
     args = parser.parse_args()
 
-    if args.simple:
-        success = asyncio.run(run_simple_task())
-    else:
-        success = asyncio.run(run_real_task())
+    success = asyncio.run(run_simple_task()) if args.simple else asyncio.run(run_real_task())
 
     sys.exit(0 if success else 1)

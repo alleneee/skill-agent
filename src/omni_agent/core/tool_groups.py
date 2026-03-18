@@ -1,7 +1,6 @@
 """用于动态工具选择的工具分组与预设。"""
 
 from enum import Enum
-from typing import List, Set
 
 
 class ToolGroup(Enum):
@@ -15,7 +14,7 @@ class ToolGroup(Enum):
     WEB_TOOLS = "web_tools"
 
 
-TOOL_GROUP_MAPPING: dict[ToolGroup, List[str]] = {
+TOOL_GROUP_MAPPING: dict[ToolGroup, list[str]] = {
     ToolGroup.FILE_OPS: ["read_file", "write_file", "edit_file", "list_dir"],
     ToolGroup.CODE_TOOLS: ["glob", "grep", "bash"],
     ToolGroup.SEARCH_TOOLS: ["search_knowledge", "web_search_exa"],
@@ -42,7 +41,7 @@ class ToolPreset(Enum):
     FULL = "full"
 
 
-TOOL_PRESETS: dict[ToolPreset, List[ToolGroup]] = {
+TOOL_PRESETS: dict[ToolPreset, list[ToolGroup]] = {
     ToolPreset.MINIMAL: [ToolGroup.FILE_OPS],
     ToolPreset.CODING: [ToolGroup.FILE_OPS, ToolGroup.CODE_TOOLS],
     ToolPreset.RESEARCH: [ToolGroup.FILE_OPS, ToolGroup.SEARCH_TOOLS, ToolGroup.WEB_TOOLS],
@@ -51,21 +50,21 @@ TOOL_PRESETS: dict[ToolPreset, List[ToolGroup]] = {
 }
 
 
-def get_tools_by_groups(groups: List[ToolGroup]) -> List[str]:
+def get_tools_by_groups(groups: list[ToolGroup]) -> list[str]:
     """获取指定分组的全部工具名称。"""
-    tools: Set[str] = set()
+    tools: set[str] = set()
     for group in groups:
         tools.update(TOOL_GROUP_MAPPING.get(group, []))
     return list(tools)
 
 
-def get_tools_by_preset(preset: ToolPreset) -> List[str]:
+def get_tools_by_preset(preset: ToolPreset) -> list[str]:
     """获取指定预设的全部工具名称。"""
     groups = TOOL_PRESETS.get(preset, [])
     return get_tools_by_groups(groups)
 
 
-def get_tools_by_group_names(group_names: List[str]) -> List[str]:
+def get_tools_by_group_names(group_names: list[str]) -> list[str]:
     """获取指定分组名称（字符串）的全部工具名称。"""
     groups = []
     for name in group_names:
@@ -76,7 +75,7 @@ def get_tools_by_group_names(group_names: List[str]) -> List[str]:
     return get_tools_by_groups(groups)
 
 
-def get_tools_by_preset_name(preset_name: str) -> List[str]:
+def get_tools_by_preset_name(preset_name: str) -> list[str]:
     """获取指定预设名称（字符串）的全部工具名称。"""
     try:
         preset = ToolPreset(preset_name)

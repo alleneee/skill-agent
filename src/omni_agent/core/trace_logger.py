@@ -33,16 +33,18 @@
     ...
     trace.end_trace(success=True)
 """
+
+import functools
 import json
 import logging
 import time
 import uuid
-import functools
+from collections.abc import Callable
 from contextvars import ContextVar
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar, ParamSpec
 from enum import Enum
+from pathlib import Path
+from typing import Optional, ParamSpec, TypeVar
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -62,6 +64,7 @@ def set_current_trace(trace: Optional["TraceLogger"]) -> None:
 
 class TraceEventType(str, Enum):
     """Trace event types."""
+
     WORKFLOW_START = "workflow_start"
     WORKFLOW_END = "workflow_end"
     AGENT_START = "agent_start"
@@ -94,7 +97,7 @@ class TraceLogger:
 
     def __init__(
         self,
-        log_dir: Optional[str] = None,
+        log_dir: str | None = None,
         write_file: bool = True,
         write_log: bool = True,
     ):
@@ -116,13 +119,13 @@ class TraceLogger:
         if self.write_file:
             self.log_dir.mkdir(parents=True, exist_ok=True)
 
-        self.trace_id: Optional[str] = None
-        self.trace_file: Optional[Path] = None
-        self.start_time: Optional[float] = None
+        self.trace_id: str | None = None
+        self.trace_file: Path | None = None
+        self.start_time: float | None = None
         self.events: list[dict] = []
         self.agent_stack: list[dict] = []
 
-    def start_trace(self, trace_type: str, metadata: Optional[dict] = None) -> str:
+    def start_trace(self, trace_type: str, metadata: dict | None = None) -> str:
         """Start a new trace.
 
         Args:
@@ -144,12 +147,12 @@ class TraceLogger:
             "event_type": TraceEventType.WORKFLOW_START,
             "timestamp": datetime.now().isoformat(),
             "trace_type": trace_type,
-            "metadata": metadata or {}
+            "metadata": metadata or {},
         }
         self._write_event(event)
         return self.trace_id
 
-    def end_trace(self, success: bool, result: Optional[str] = None):
+    def end_trace(self, success: bool, result: str | None = None):
         """End the current trace."""
         if not self.trace_id:
             return
@@ -162,7 +165,7 @@ class TraceLogger:
             "success": success,
             "elapsed_seconds": round(elapsed, 3),
             "result_preview": result[:200] if result else None,
-            "total_events": len(self.events)
+            "total_events": len(self.events),
         }
         self._write_event(event)
         self._write_summary()
@@ -172,8 +175,8 @@ class TraceLogger:
         agent_name: str,
         agent_role: str,
         task: str,
-        parent_agent: Optional[str] = None,
-        depth: int = 0
+        parent_agent: str | None = None,
+        depth: int = 0,
     ):
         """Log agents execution start."""
         agent_id = f"{agent_name}_{len(self.agent_stack)}"
@@ -183,7 +186,7 @@ class TraceLogger:
             "role": agent_role,
             "depth": depth,
             "parent": parent_agent,
-            "start_time": time.time()
+            "start_time": time.time(),
         }
         self.agent_stack.append(agent_info)
 
@@ -196,7 +199,7 @@ class TraceLogger:
             "agent_role": agent_role,
             "task": task,
             "parent_agent": parent_agent,
-            "depth": depth
+            "depth": depth,
         }
         self._write_event(event)
 
@@ -204,10 +207,10 @@ class TraceLogger:
         self,
         agent_name: str,
         success: bool,
-        result: Optional[str] = None,
+        result: str | None = None,
         steps: int = 0,
         input_tokens: int = 0,
-        output_tokens: int = 0
+        output_tokens: int = 0,
     ):
         """Log agents execution end."""
         if not self.agent_stack:
@@ -228,7 +231,7 @@ class TraceLogger:
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "total_tokens": input_tokens + output_tokens,
-            "result_preview": result[:200] if result else None
+            "result_preview": result[:200] if result else None,
         }
         self._write_event(event)
 
@@ -238,7 +241,7 @@ class TraceLogger:
         task_description: str,
         assigned_to: str,
         depends_on: list[str],
-        layer: int
+        layer: int,
     ):
         """Log task execution start in dependency workflow."""
         event = {
@@ -250,7 +253,7 @@ class TraceLogger:
             "assigned_to": assigned_to,
             "depends_on": depends_on,
             "layer": layer,
-            "start_time": time.time()
+            "start_time": time.time(),
         }
         self._write_event(event)
 
@@ -258,8 +261,8 @@ class TraceLogger:
         self,
         task_id: str,
         status: str,
-        result: Optional[str] = None,
-        elapsed: Optional[float] = None
+        result: str | None = None,
+        elapsed: float | None = None,
     ):
         """Log task execution end."""
         event = {
@@ -269,16 +272,11 @@ class TraceLogger:
             "task_id": task_id,
             "status": status,
             "elapsed_seconds": round(elapsed, 3) if elapsed else None,
-            "result_preview": result[:200] if result else None
+            "result_preview": result[:200] if result else None,
         }
         self._write_event(event)
 
-    def log_delegation(
-        self,
-        from_agent: str,
-        to_member: str,
-        task: str
-    ):
+    def log_delegation(self, from_agent: str, to_member: str, task: str):
         """Log task delegation from leader to member."""
         event = {
             "trace_id": self.trace_id,
@@ -286,16 +284,11 @@ class TraceLogger:
             "timestamp": datetime.now().isoformat(),
             "from_agent": from_agent,
             "to_member": to_member,
-            "task_preview": task[:200]
+            "task_preview": task[:200],
         }
         self._write_event(event)
 
-    def log_message_pass(
-        self,
-        from_task: str,
-        to_task: str,
-        message_preview: str
-    ):
+    def log_message_pass(self, from_task: str, to_task: str, message_preview: str):
         """Log message passing between tasks."""
         event = {
             "trace_id": self.trace_id,
@@ -303,17 +296,12 @@ class TraceLogger:
             "timestamp": datetime.now().isoformat(),
             "from_task": from_task,
             "to_task": to_task,
-            "message_preview": message_preview[:200]
+            "message_preview": message_preview[:200],
         }
         self._write_event(event)
 
     def log_tool_call(
-        self,
-        agent_name: str,
-        tool_name: str,
-        arguments: dict,
-        success: bool,
-        elapsed: float
+        self, agent_name: str, tool_name: str, arguments: dict, success: bool, elapsed: float
     ):
         """Log tool execution."""
         event = {
@@ -324,17 +312,11 @@ class TraceLogger:
             "tool_name": tool_name,
             "arguments": arguments,
             "success": success,
-            "elapsed_seconds": round(elapsed, 3)
+            "elapsed_seconds": round(elapsed, 3),
         }
         self._write_event(event)
 
-    def log_llm_call(
-        self,
-        agent_name: str,
-        model: str,
-        tokens: int,
-        elapsed: float
-    ):
+    def log_llm_call(self, agent_name: str, model: str, tokens: int, elapsed: float):
         """Log LLM API call."""
         event = {
             "trace_id": self.trace_id,
@@ -343,7 +325,7 @@ class TraceLogger:
             "agent_name": agent_name,
             "model": model,
             "tokens": tokens,
-            "elapsed_seconds": round(elapsed, 3)
+            "elapsed_seconds": round(elapsed, 3),
         }
         self._write_event(event)
 
@@ -453,34 +435,40 @@ class TraceLogger:
                 output_tokens = event.get("output_tokens", 0)
                 total_input_tokens += input_tokens
                 total_output_tokens += output_tokens
-                agents.append({
-                    "agent_id": event.get("agent_id"),
-                    "agent_name": event.get("agent_name"),
-                    "success": event.get("success"),
-                    "steps": event.get("steps"),
-                    "elapsed": event.get("elapsed_seconds"),
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens,
-                    "total_tokens": input_tokens + output_tokens,
-                })
+                agents.append(
+                    {
+                        "agent_id": event.get("agent_id"),
+                        "agent_name": event.get("agent_name"),
+                        "success": event.get("success"),
+                        "steps": event.get("steps"),
+                        "elapsed": event.get("elapsed_seconds"),
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "total_tokens": input_tokens + output_tokens,
+                    }
+                )
 
         tasks = []
         for event in self.events:
             if event.get("event_type") == TraceEventType.TASK_END:
-                tasks.append({
-                    "task_id": event.get("task_id"),
-                    "status": event.get("status"),
-                    "elapsed": event.get("elapsed_seconds")
-                })
+                tasks.append(
+                    {
+                        "task_id": event.get("task_id"),
+                        "status": event.get("status"),
+                        "elapsed": event.get("elapsed_seconds"),
+                    }
+                )
 
         delegations = []
         for event in self.events:
             if event.get("event_type") == TraceEventType.DELEGATION:
-                delegations.append({
-                    "from": event.get("from_agent"),
-                    "to": event.get("to_member"),
-                    "timestamp": event.get("timestamp")
-                })
+                delegations.append(
+                    {
+                        "from": event.get("from_agent"),
+                        "to": event.get("to_member"),
+                        "timestamp": event.get("timestamp"),
+                    }
+                )
 
         return {
             "trace_id": self.trace_id,
@@ -493,20 +481,17 @@ class TraceLogger:
             "agents": agents,
             "tasks": tasks,
             "delegations": delegations,
-            "trace_file": str(self.trace_file)
+            "trace_file": str(self.trace_file),
         }
 
-    def get_current_agent(self) -> Optional[str]:
+    def get_current_agent(self) -> str | None:
         """Get current executing agents name."""
         if self.agent_stack:
             return self.agent_stack[-1]["agent_id"]
         return None
 
 
-def trace_workflow(
-    trace_type: str = "workflow",
-    get_metadata: Optional[Callable[..., dict]] = None
-):
+def trace_workflow(trace_type: str = "workflow", get_metadata: Callable[..., dict] | None = None):
     def decorator(func: Callable[P, T]) -> Callable[P, T]:
         @functools.wraps(func)
         async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
@@ -545,17 +530,16 @@ def trace_workflow(
                 set_current_trace(None)
 
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         return sync_wrapper
+
     return decorator
 
 
 def trace_agent(
-    name_attr: str = "name",
-    role_attr: str = "role",
-    task_param: str = "task",
-    depth: int = 0
+    name_attr: str = "name", role_attr: str = "role", task_param: str = "task", depth: int = 0
 ):
     def decorator(func: Callable[P, T]) -> Callable[P, T]:
         @functools.wraps(func)
@@ -574,7 +558,7 @@ def trace_agent(
 
             try:
                 result = await func(*args, **kwargs)
-                elapsed = time.time() - start_time
+                time.time() - start_time
                 success = True
                 if hasattr(result, "success"):
                     success = result.success
@@ -611,9 +595,11 @@ def trace_agent(
                 raise
 
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         return sync_wrapper
+
     return decorator
 
 
@@ -642,9 +628,11 @@ def trace_delegation(from_agent: str = "Leader"):
             return func(*args, **kwargs)
 
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         return sync_wrapper
+
     return decorator
 
 
@@ -678,19 +666,23 @@ def trace_task(task_id_param: str = "task_id", layer: int = 0):
                 raise
 
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         return func
+
     return decorator
 
 
 class traced:
     @staticmethod
-    def workflow(trace_type: str = "workflow", get_metadata: Optional[Callable] = None):
+    def workflow(trace_type: str = "workflow", get_metadata: Callable | None = None):
         return trace_workflow(trace_type, get_metadata)
 
     @staticmethod
-    def agent(name_attr: str = "name", role_attr: str = "role", task_param: str = "task", depth: int = 0):
+    def agent(
+        name_attr: str = "name", role_attr: str = "role", task_param: str = "task", depth: int = 0
+    ):
         return trace_agent(name_attr, role_attr, task_param, depth)
 
     @staticmethod

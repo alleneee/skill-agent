@@ -26,7 +26,7 @@ class TestModelValidation:
         ]
         for input_model, expected in test_cases:
             settings = Settings(LLM_MODEL=input_model)
-            assert settings.LLM_MODEL == expected, f"Failed for {input_model}"
+            assert expected == settings.LLM_MODEL, f"Failed for {input_model}"
 
     def test_auto_detect_gpt(self):
         """Test auto-detection of GPT models."""
@@ -39,7 +39,7 @@ class TestModelValidation:
         ]
         for input_model, expected in test_cases:
             settings = Settings(LLM_MODEL=input_model)
-            assert settings.LLM_MODEL == expected, f"Failed for {input_model}"
+            assert expected == settings.LLM_MODEL, f"Failed for {input_model}"
 
     def test_auto_detect_gemini(self):
         """Test auto-detection of Gemini models."""
@@ -49,7 +49,7 @@ class TestModelValidation:
         ]
         for input_model, expected in test_cases:
             settings = Settings(LLM_MODEL=input_model)
-            assert settings.LLM_MODEL == expected, f"Failed for {input_model}"
+            assert expected == settings.LLM_MODEL, f"Failed for {input_model}"
 
     def test_auto_detect_mistral(self):
         """Test auto-detection of Mistral models."""
@@ -64,7 +64,7 @@ class TestModelValidation:
         ]
         for input_model, expected in test_cases:
             settings = Settings(LLM_MODEL=input_model)
-            assert settings.LLM_MODEL == expected, f"Failed for {input_model}"
+            assert expected == settings.LLM_MODEL, f"Failed for {input_model}"
 
     def test_unknown_model_defaults_to_openai(self):
         """Test unknown models default to openai/ prefix (for custom endpoints)."""
@@ -90,7 +90,7 @@ class TestModelValidation:
         ]
         for input_model, expected in test_cases:
             settings = Settings(LLM_MODEL=input_model)
-            assert settings.LLM_MODEL == expected, f"Failed for {input_model}"
+            assert expected == settings.LLM_MODEL, f"Failed for {input_model}"
 
     def test_already_prefixed_models_unchanged(self):
         """Test that models with correct prefix are not modified."""
@@ -103,4 +103,4 @@ class TestModelValidation:
         ]
         for model in test_cases:
             settings = Settings(LLM_MODEL=model)
-            assert settings.LLM_MODEL == model, f"Failed for {model}"
+            assert model == settings.LLM_MODEL, f"Failed for {model}"

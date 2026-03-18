@@ -1,6 +1,8 @@
+import contextlib
 import os
 from abc import ABC, abstractmethod
-from typing import Any, AsyncIterator, Callable, Optional
+from collections.abc import AsyncIterator, Callable
+from typing import Any
 
 from acp import PROTOCOL_VERSION, spawn_agent_process, text_block
 from acp.interfaces import Client
@@ -15,7 +17,7 @@ from acp.schema import (
     ToolCallUpdate,
 )
 
-from .backends import AcpBackendId, get_backend_config, get_cli_args
+from .backends import get_backend_config, get_cli_args
 
 
 class AcpEvent:
@@ -53,7 +55,7 @@ class PermissionRequestEvent(AcpEvent):
 class SessionHandler(Client, ABC):
     def __init__(self, auto_approve: bool = False):
         self.auto_approve = auto_approve
-        self._event_callback: Optional[Callable[[AcpEvent], None]] = None
+        self._event_callback: Callable[[AcpEvent], None] | None = None
 
     def set_event_callback(self, callback: Callable[[AcpEvent], None]):
         self._event_callback = callback
@@ -151,10 +153,10 @@ class AcpClient:
     def __init__(
         self,
         backend: str,
-        workspace: Optional[str] = None,
-        cli_path: Optional[str] = None,
-        handler: Optional[SessionHandler] = None,
-        env: Optional[dict[str, str]] = None,
+        workspace: str | None = None,
+        cli_path: str | None = None,
+        handler: SessionHandler | None = None,
+        env: dict[str, str] | None = None,
     ):
         self.backend = backend
         self.workspace = workspace or os.getcwd()
@@ -164,7 +166,7 @@ class AcpClient:
 
         self._conn = None
         self._proc = None
-        self._session_id: Optional[str] = None
+        self._session_id: str | None = None
 
     def _build_env(self) -> dict[str, str]:
         env = os.environ.copy()
@@ -227,10 +229,10 @@ class AcpClient:
 async def run_prompt(
     backend: str,
     prompt: str,
-    workspace: Optional[str] = None,
-    cli_path: Optional[str] = None,
+    workspace: str | None = None,
+    cli_path: str | None = None,
     auto_approve: bool = True,
-    on_event: Optional[Callable[[AcpEvent], None]] = None,
+    on_event: Callable[[AcpEvent], None] | None = None,
 ) -> str:
     handler = AutoApproveHandler() if auto_approve else InteractiveHandler()
     message_buffer = []
@@ -257,14 +259,14 @@ async def run_prompt(
 async def stream_prompt(
     backend: str,
     prompt: str,
-    workspace: Optional[str] = None,
-    cli_path: Optional[str] = None,
+    workspace: str | None = None,
+    cli_path: str | None = None,
     auto_approve: bool = True,
 ) -> AsyncIterator[AcpEvent]:
     import asyncio
 
     handler = AutoApproveHandler() if auto_approve else InteractiveHandler()
-    queue: asyncio.Queue[Optional[AcpEvent]] = asyncio.Queue()
+    queue: asyncio.Queue[AcpEvent | None] = asyncio.Queue()
 
     def enqueue_event(event: AcpEvent):
         queue.put_nowait(event)
@@ -294,7 +296,5 @@ async def stream_prompt(
     finally:
         if not task.done():
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass

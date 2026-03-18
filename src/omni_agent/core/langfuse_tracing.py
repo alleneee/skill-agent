@@ -6,18 +6,20 @@ for agents and tool execution tracing.
 
 When Langfuse is disabled, falls back to basic console logging.
 """
+
 import logging
 import os
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
 from functools import wraps
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, TypeVar
 
 from omni_agent.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_langfuse_client: Optional[Any] = None
+_langfuse_client: Any | None = None
 _langfuse_enabled: bool = False
 _langfuse_initialized: bool = False
 
@@ -46,8 +48,8 @@ def init_langfuse() -> bool:
         return False
 
     try:
-        from langfuse import Langfuse
         import litellm
+        from langfuse import Langfuse
 
         os.environ["LANGFUSE_PUBLIC_KEY"] = settings.LANGFUSE_PUBLIC_KEY
         os.environ["LANGFUSE_SECRET_KEY"] = settings.LANGFUSE_SECRET_KEY
@@ -81,7 +83,7 @@ def init_langfuse() -> bool:
         return False
 
 
-def get_langfuse() -> Optional[Any]:
+def get_langfuse() -> Any | None:
     """Get the Langfuse client instance."""
     return _langfuse_client if _langfuse_enabled else None
 
@@ -109,23 +111,23 @@ class ConsoleTracer:
     def __init__(
         self,
         name: str = "agents",
-        user_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        metadata: Optional[dict] = None,
-        tags: Optional[list[str]] = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        metadata: dict | None = None,
+        tags: list[str] | None = None,
     ):
         self.name = name
         self.user_id = user_id
         self.session_id = session_id
         self.metadata = metadata or {}
         self.tags = tags or []
-        self._start_time: Optional[float] = None
+        self._start_time: float | None = None
         self._total_input_tokens = 0
         self._total_output_tokens = 0
         self._task = ""
 
     @property
-    def trace_id(self) -> Optional[str]:
+    def trace_id(self) -> str | None:
         return None
 
     def start_trace(self, task: str) -> "ConsoleTracer":
@@ -142,13 +144,15 @@ class ConsoleTracer:
         token_limit: int,
     ) -> None:
         usage_pct = round((token_count / token_limit) * 100, 2)
-        logger.info(f"[STEP] {step}/{max_steps} | tokens={token_count:,}/{token_limit:,} ({usage_pct}%)")
+        logger.info(
+            f"[STEP] {step}/{max_steps} | tokens={token_count:,}/{token_limit:,} ({usage_pct}%)"
+        )
 
     def log_llm_response(
         self,
         input_tokens: int = 0,
         output_tokens: int = 0,
-        model: Optional[str] = None,
+        model: str | None = None,
     ) -> None:
         self._total_input_tokens += input_tokens
         self._total_output_tokens += output_tokens
@@ -169,15 +173,15 @@ class ConsoleTracer:
             yield None
         finally:
             execution_time = time.time() - start_time
-            logger.info(f"[TOOL END] {tool_name} ({execution_time*1000:.2f}ms)")
+            logger.info(f"[TOOL END] {tool_name} ({execution_time * 1000:.2f}ms)")
 
     def end_tool_span(
         self,
         span: Any,
         success: bool,
-        content: Optional[str] = None,
-        error: Optional[str] = None,
-        execution_time: Optional[float] = None,
+        content: str | None = None,
+        error: str | None = None,
+        execution_time: float | None = None,
     ) -> None:
         pass
 
@@ -185,8 +189,8 @@ class ConsoleTracer:
         self,
         span: Any,
         success: bool,
-        content: Optional[str] = None,
-        error: Optional[str] = None,
+        content: str | None = None,
+        error: str | None = None,
     ) -> None:
         if not success and error:
             logger.warning(f"[TOOL ERROR] {error}")
@@ -209,10 +213,10 @@ class ConsoleTracer:
 
 def get_tracer(
     name: str = "agents",
-    user_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-    metadata: Optional[dict] = None,
-    tags: Optional[list[str]] = None,
+    user_id: str | None = None,
+    session_id: str | None = None,
+    metadata: dict | None = None,
+    tags: list[str] | None = None,
 ) -> "LangfuseTracer | ConsoleTracer":
     """Get appropriate tracer based on Langfuse availability.
 
@@ -247,10 +251,10 @@ class LangfuseTracer:
     def __init__(
         self,
         name: str = "agents",
-        user_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        metadata: Optional[dict] = None,
-        tags: Optional[list[str]] = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        metadata: dict | None = None,
+        tags: list[str] | None = None,
     ):
         self.name = name
         self.user_id = user_id
@@ -258,12 +262,12 @@ class LangfuseTracer:
         self.metadata = metadata or {}
         self.tags = tags or []
         self._trace = None
-        self._start_time: Optional[float] = None
+        self._start_time: float | None = None
         self._total_input_tokens = 0
         self._total_output_tokens = 0
 
     @property
-    def trace_id(self) -> Optional[str]:
+    def trace_id(self) -> str | None:
         """Get current trace ID for linking LLM calls."""
         return self._trace.id if self._trace else None
 
@@ -316,7 +320,7 @@ class LangfuseTracer:
         self,
         input_tokens: int = 0,
         output_tokens: int = 0,
-        model: Optional[str] = None,
+        model: str | None = None,
     ) -> None:
         """Log LLM response token usage."""
         self._total_input_tokens += input_tokens
@@ -388,9 +392,9 @@ class LangfuseTracer:
         self,
         span: Any,
         success: bool,
-        content: Optional[str] = None,
-        error: Optional[str] = None,
-        execution_time: Optional[float] = None,
+        content: str | None = None,
+        error: str | None = None,
+        execution_time: float | None = None,
     ) -> None:
         """End a tool span with result.
 
@@ -424,8 +428,8 @@ class LangfuseTracer:
         self,
         span: Any,
         success: bool,
-        content: Optional[str] = None,
-        error: Optional[str] = None,
+        content: str | None = None,
+        error: str | None = None,
     ) -> None:
         """Update tool span output without ending it (for use with context manager)."""
         if not span:
@@ -462,7 +466,9 @@ class LangfuseTracer:
             self._trace.update(
                 output={
                     "success": success,
-                    "response": final_response[:1000] if len(final_response) > 1000 else final_response,
+                    "response": final_response[:1000]
+                    if len(final_response) > 1000
+                    else final_response,
                     "reason": reason,
                 },
                 metadata={
@@ -485,9 +491,9 @@ class LangfuseTracer:
 
 
 def trace_agent(
-    name: Optional[str] = None,
-    user_id: Optional[str] = None,
-    session_id: Optional[str] = None,
+    name: str | None = None,
+    user_id: str | None = None,
+    session_id: str | None = None,
 ):
     """Decorator for tracing agents execution.
 
@@ -496,6 +502,7 @@ def trace_agent(
         async def run(self, task: str):
             ...
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @wraps(func)
         async def async_wrapper(*args, **kwargs) -> T:
@@ -538,6 +545,7 @@ def trace_agent(
                 raise
 
         return async_wrapper
+
     return decorator
 
 
@@ -549,6 +557,7 @@ def trace_tool(func: Callable[..., T]) -> Callable[..., T]:
         async def execute(self, **kwargs):
             ...
     """
+
     @wraps(func)
     async def async_wrapper(*args, **kwargs) -> T:
         return await func(*args, **kwargs)

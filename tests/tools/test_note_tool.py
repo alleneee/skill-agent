@@ -1,9 +1,11 @@
 """Tests for Session Note Tool."""
 
 import json
-import pytest
 from pathlib import Path
-from omni_agent.tools.note_tool import SessionNoteTool, RecallNoteTool
+
+import pytest
+
+from omni_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
 
 
 @pytest.fixture
@@ -28,10 +30,7 @@ def recall_tool(temp_memory_file):
 async def test_record_note_creates_file(session_tool, temp_memory_file):
     """Test that recording a note creates the memory file."""
     # Record a note
-    result = await session_tool.execute(
-        content="用户偏好简洁的回复",
-        category="user_preference"
-    )
+    result = await session_tool.execute(content="用户偏好简洁的回复", category="user_preference")
 
     # Check result
     assert result.success is True
@@ -41,7 +40,7 @@ async def test_record_note_creates_file(session_tool, temp_memory_file):
     assert Path(temp_memory_file).exists()
 
     # Check file content
-    with open(temp_memory_file, 'r', encoding='utf-8') as f:
+    with open(temp_memory_file, encoding="utf-8") as f:
         notes = json.load(f)
 
     assert len(notes) == 1
@@ -54,19 +53,13 @@ async def test_record_note_creates_file(session_tool, temp_memory_file):
 async def test_record_multiple_notes(session_tool, temp_memory_file):
     """Test recording multiple notes."""
     # Record first note
-    await session_tool.execute(
-        content="项目使用 Python 3.12",
-        category="project_info"
-    )
+    await session_tool.execute(content="项目使用 Python 3.12", category="project_info")
 
     # Record second note
-    await session_tool.execute(
-        content="用户喜欢 FastAPI",
-        category="user_preference"
-    )
+    await session_tool.execute(content="用户喜欢 FastAPI", category="user_preference")
 
     # Check file content
-    with open(temp_memory_file, 'r', encoding='utf-8') as f:
+    with open(temp_memory_file, encoding="utf-8") as f:
         notes = json.load(f)
 
     assert len(notes) == 2
@@ -157,7 +150,7 @@ async def test_default_category(session_tool):
 
     # Read from file
     memory_file = session_tool.memory_file
-    with open(memory_file, 'r', encoding='utf-8') as f:
+    with open(memory_file, encoding="utf-8") as f:
         notes = json.load(f)
 
     assert notes[0]["category"] == "general"

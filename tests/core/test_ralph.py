@@ -1,18 +1,20 @@
 """Ralph 模式测试."""
-import pytest
+
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from omni_agent.core.ralph import (
+    CompletionCondition,
+    CompletionDetector,
+    ContextManager,
+    ContextStrategy,
     RalphConfig,
     RalphLoop,
     RalphState,
     ToolResultCache,
     WorkingMemory,
-    ContextManager,
-    ContextStrategy,
-    CompletionDetector,
-    CompletionCondition,
 )
 
 
@@ -131,9 +133,7 @@ class TestWorkingMemory:
 
 class TestCompletionDetector:
     def test_promise_detection(self):
-        config = RalphConfig(
-            completion_conditions=[CompletionCondition.PROMISE_TAG]
-        )
+        config = RalphConfig(completion_conditions=[CompletionCondition.PROMISE_TAG])
         detector = CompletionDetector(config)
 
         result = detector.check(
@@ -146,8 +146,7 @@ class TestCompletionDetector:
 
     def test_max_iterations(self):
         config = RalphConfig(
-            max_iterations=5,
-            completion_conditions=[CompletionCondition.MAX_ITERATIONS]
+            max_iterations=5, completion_conditions=[CompletionCondition.MAX_ITERATIONS]
         )
         detector = CompletionDetector(config)
 
@@ -161,8 +160,7 @@ class TestCompletionDetector:
 
     def test_idle_threshold(self):
         config = RalphConfig(
-            idle_threshold=2,
-            completion_conditions=[CompletionCondition.IDLE_THRESHOLD]
+            idle_threshold=2, completion_conditions=[CompletionCondition.IDLE_THRESHOLD]
         )
         detector = CompletionDetector(config)
 
@@ -182,7 +180,7 @@ class TestCompletionDetector:
             completion_conditions=[
                 CompletionCondition.PROMISE_TAG,
                 CompletionCondition.MAX_ITERATIONS,
-            ]
+            ],
         )
         detector = CompletionDetector(config)
 

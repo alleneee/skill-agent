@@ -23,8 +23,9 @@
         agent = await agent_factory.create_agent(llm_client, config)
         ...
 """
+
 from pathlib import Path
-from typing import Annotated, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated, Optional
 
 from fastapi import Depends
 
@@ -41,14 +42,14 @@ from omni_agent.skills import create_skill_tools
 from omni_agent.tools import (
     BashTool,
     EditTool,
+    GetUserInputTool,
     GlobTool,
     GrepTool,
     ListDirTool,
     ReadTool,
+    SpawnAgentTool,
     Tool,
     WriteTool,
-    SpawnAgentTool,
-    GetUserInputTool,
 )
 from omni_agent.tools.mcp_loader import cleanup_mcp_connections, load_mcp_tools_async
 from omni_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
@@ -63,8 +64,8 @@ _mcp_tools: list[Tool] = []
 
 # 会话管理器（应用启动时初始化）
 # 支持多种存储后端: file（文件）, redis, postgres
-_agent_session_manager: Optional[UnifiedAgentSessionManager] = None
-_team_session_manager: Optional[UnifiedTeamSessionManager] = None
+_agent_session_manager: UnifiedAgentSessionManager | None = None
+_team_session_manager: UnifiedTeamSessionManager | None = None
 
 # 沙箱管理器（ENABLE_SANDBOX=true 时初始化）
 # 每个 session 对应一个隔离的沙箱实例
@@ -100,10 +101,8 @@ async def initialize_mcp_tools() -> None:
     global _mcp_tools
 
     try:
-        import sys
-
         # 强制刷新以确保输出可见
-        debug_log = open("/tmp/mcp_init_debug.log", "w")
+        debug_log = open("/tmp/mcp_init_debug.log", "w")  # noqa: SIM115
         debug_log.write("=== MCP Initialization Debug Log ===\n")
         debug_log.write(f"ENABLE_MCP: {settings.ENABLE_MCP}\n")
         debug_log.write(f"MCP_CONFIG_PATH: {settings.MCP_CONFIG_PATH}\n")
@@ -141,6 +140,7 @@ async def initialize_mcp_tools() -> None:
         debug_log.close()
     except Exception as e:
         import traceback
+
         error_msg = f"❌ Error during MCP initialization: {e}\n{traceback.format_exc()}"
         print(error_msg, flush=True)
         with open("/tmp/mcp_init_error.log", "w") as f:
@@ -220,7 +220,9 @@ async def initialize_session_manager() -> None:
                 redis_password=settings.SESSION_REDIS_PASSWORD or None,
                 ttl_seconds=ttl_seconds,
             )
-            print(f"✅ Session managers initialized (redis): {settings.SESSION_REDIS_HOST}:{settings.SESSION_REDIS_PORT}")
+            print(
+                f"✅ Session managers initialized (redis): {settings.SESSION_REDIS_HOST}:{settings.SESSION_REDIS_PORT}"
+            )
 
         elif backend in ("postgres", "postgresql"):
             # PostgreSQL 存储
@@ -275,6 +277,7 @@ async def initialize_session_manager() -> None:
 
     except Exception as e:
         import traceback
+
         error_msg = f"❌ Error during session manager initialization: {e}"
         print(error_msg)
         print(traceback.format_exc())
@@ -284,12 +287,12 @@ async def initialize_session_manager() -> None:
         print("⚠️  Falling back to default file session storage")
 
 
-def get_agent_session_manager() -> Optional[UnifiedAgentSessionManager]:
+def get_agent_session_manager() -> UnifiedAgentSessionManager | None:
     """获取全局 Agent 会话管理器实例."""
     return _agent_session_manager
 
 
-def get_session_manager() -> Optional[UnifiedTeamSessionManager]:
+def get_session_manager() -> UnifiedTeamSessionManager | None:
     """获取全局 Team 会话管理器实例."""
     return _team_session_manager
 
@@ -325,6 +328,7 @@ async def initialize_sandbox_manager() -> None:
         print("⚠️  Sandbox integration disabled")
     except Exception as e:
         import traceback
+
         print(f"❌ Error during sandbox initialization: {e}")
         print(traceback.format_exc())
 
@@ -451,7 +455,7 @@ class AgentFactory:
         self,
         llm_client: LLMClient,
         config: Optional["AgentConfig"] = None,
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
     ) -> Agent:
         """创建动态配置的 Agent.
 
@@ -463,8 +467,8 @@ class AgentFactory:
         Returns:
             配置完成的 Agent 实例
         """
-        from omni_agent.schemas.message import AgentConfig
         from omni_agent.core.workspace import get_workspace_manager
+        from omni_agent.schemas.message import AgentConfig
 
         if config is None:
             config = AgentConfig()
@@ -472,7 +476,9 @@ class AgentFactory:
         base_workspace = config.workspace_dir or self.settings.AGENT_WORKSPACE_DIR
         max_steps = config.max_steps or self.settings.AGENT_MAX_STEPS
         token_limit = config.token_limit or 120000
-        enable_summarization = config.enable_summarization if config.enable_summarization is not None else True
+        enable_summarization = (
+            config.enable_summarization if config.enable_summarization is not None else True
+        )
 
         workspace_manager = get_workspace_manager(base_workspace)
         workspace_path = workspace_manager.get_session_workspace(session_id)
@@ -493,7 +499,11 @@ class AgentFactory:
         system_prompt = config.system_prompt or self.settings.SYSTEM_PROMPT
 
         # 如果启用则注入 Skills 元数据
-        enable_skills = config.enable_skills if config.enable_skills is not None else self.settings.ENABLE_SKILLS
+        enable_skills = (
+            config.enable_skills
+            if config.enable_skills is not None
+            else self.settings.ENABLE_SKILLS
+        )
         if enable_skills:
             _, skill_loader = create_skill_tools(self.settings.SKILLS_DIR)
             if skill_loader:
@@ -517,7 +527,7 @@ class AgentFactory:
         self,
         config: "AgentConfig",
         workspace_dir: str,
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
     ) -> list[Tool]:
         """根据配置构建工具列表.
 
@@ -533,15 +543,12 @@ class AgentFactory:
         当 ENABLE_SANDBOX=true 且提供 session_id 时，
         基础工具会替换为沙箱版本（在 Docker 容器中执行）。
         """
-        from omni_agent.schemas.message import AgentConfig
 
         tools = []
 
         # 检查是否应该使用沙箱
         use_sandbox = (
-            self.settings.ENABLE_SANDBOX
-            and _sandbox_manager is not None
-            and session_id is not None
+            self.settings.ENABLE_SANDBOX and _sandbox_manager is not None and session_id is not None
         )
 
         # 基础工具 - 如果启用沙箱则使用沙箱工具，否则使用本地工具
@@ -549,6 +556,7 @@ class AgentFactory:
         if enable_base:
             if use_sandbox:
                 from omni_agent.sandbox.toolkit import SandboxToolkit
+
                 toolkit = SandboxToolkit(_sandbox_manager)
                 sandbox_tools = await toolkit.get_tools(session_id)
                 all_base_tools = sandbox_tools + [
@@ -596,14 +604,22 @@ class AgentFactory:
                 tools.extend(all_base_tools)
 
         # Skill 工具
-        enable_skills = config.enable_skills if config.enable_skills is not None else self.settings.ENABLE_SKILLS
+        enable_skills = (
+            config.enable_skills
+            if config.enable_skills is not None
+            else self.settings.ENABLE_SKILLS
+        )
         if enable_skills:
             skill_tools, _ = create_skill_tools(self.settings.SKILLS_DIR)
             if skill_tools:
                 tools.extend(skill_tools)
 
         # MCP 工具
-        enable_mcp = config.enable_mcp_tools if config.enable_mcp_tools is not None else self.settings.ENABLE_MCP
+        enable_mcp = (
+            config.enable_mcp_tools
+            if config.enable_mcp_tools is not None
+            else self.settings.ENABLE_MCP
+        )
         if enable_mcp:
             # 如果提供了自定义 MCP 配置则使用
             if config.mcp_config_path:
@@ -614,15 +630,14 @@ class AgentFactory:
 
             # 如果请求了特定工具则进行过滤
             if config.mcp_tools_filter and mcp_tools:
-                tools.extend([
-                    tool for tool in mcp_tools
-                    if tool.name in config.mcp_tools_filter
-                ])
+                tools.extend([tool for tool in mcp_tools if tool.name in config.mcp_tools_filter])
             elif mcp_tools:
                 tools.extend(mcp_tools)
 
         # RAG 工具
-        enable_rag = config.enable_rag if config.enable_rag is not None else self.settings.ENABLE_RAG
+        enable_rag = (
+            config.enable_rag if config.enable_rag is not None else self.settings.ENABLE_RAG
+        )
         if enable_rag:
             tools.append(RAGTool())
 
@@ -651,7 +666,11 @@ class AgentFactory:
         Returns:
             包含 SpawnAgentTool 的工具列表（如果未达到 max_depth）
         """
-        enable_spawn = config.enable_spawn_agent if config.enable_spawn_agent is not None else self.settings.ENABLE_SPAWN_AGENT
+        enable_spawn = (
+            config.enable_spawn_agent
+            if config.enable_spawn_agent is not None
+            else self.settings.ENABLE_SPAWN_AGENT
+        )
         if not enable_spawn:
             return tools
 
@@ -734,4 +753,3 @@ def get_default_team(
         available_tools=tools,
         workspace_dir=str(workspace_path),
     )
-

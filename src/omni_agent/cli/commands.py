@@ -1,4 +1,5 @@
 """斜杠命令的 CLI 命令处理器。"""
+
 from datetime import datetime
 from typing import TYPE_CHECKING
 

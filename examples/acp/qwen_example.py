@@ -31,7 +31,7 @@ async def main() -> None:
         elif isinstance(event, ToolCallEvent):
             print(f"\n[Tool] {event.title}")
 
-    print(f"Connecting to Qwen Code...")
+    print("Connecting to Qwen Code...")
     print(f"Workspace: {args.workspace}")
     print("-" * 50)
 

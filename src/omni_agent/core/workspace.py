@@ -11,10 +11,10 @@
     ├── session_def456/  # 会话 2 的工作目录
     └── run_xxx/         # 临时运行目录
 """
+
 import shutil
 import time
 from pathlib import Path
-from typing import Optional
 from uuid import uuid4
 
 
@@ -25,7 +25,7 @@ class WorkspaceManager:
         self.base_dir = Path(base_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_session_workspace(self, session_id: Optional[str] = None) -> Path:
+    def get_session_workspace(self, session_id: str | None = None) -> Path:
         """Get or create a workspace directory for a session.
 
         Args:
@@ -87,12 +87,11 @@ class WorkspaceManager:
             List of session IDs
         """
         return [
-            d.name for d in self.base_dir.iterdir()
-            if d.is_dir() and not d.name.startswith("_")
+            d.name for d in self.base_dir.iterdir() if d.is_dir() and not d.name.startswith("_")
         ]
 
 
-_workspace_manager: Optional[WorkspaceManager] = None
+_workspace_manager: WorkspaceManager | None = None
 
 
 def get_workspace_manager(base_dir: str = "./workspace") -> WorkspaceManager:

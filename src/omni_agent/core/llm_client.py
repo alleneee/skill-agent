@@ -25,21 +25,24 @@
     )
     response = await client.generate(messages)
 """
+
 import json
 import logging
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 import litellm
 from litellm import acompletion
 
 from omni_agent.core.retry import RetryConfig, async_retry
-from omni_agent.schemas.message import FunctionCall, LLMResponse, Message, ToolCall, TokenUsage
+from omni_agent.schemas.message import FunctionCall, LLMResponse, Message, TokenUsage, ToolCall
 
 logger = logging.getLogger(__name__)
 
 litellm.drop_params = True
 
 from omni_agent.core.langfuse_tracing import init_langfuse
+
 init_langfuse()
 
 import re
@@ -54,6 +57,7 @@ CONTENT_FILTER_PATTERNS = [
     re.compile(r"I[a-z]{2,}(?:will|now|use|the|to|am|search|get|find)[a-z]*", re.IGNORECASE),
     re.compile(r"tool[a-zA-Z\u00C0-\u017F]+\.", re.IGNORECASE),
 ]
+
 
 def _clean_content(content: str) -> str:
     if not content:
@@ -150,8 +154,8 @@ class LLMClient:
                             "function": {
                                 "name": tc.function.name,
                                 "arguments": json.dumps(tc.function.arguments)
-                                    if isinstance(tc.function.arguments, dict)
-                                    else tc.function.arguments,
+                                if isinstance(tc.function.arguments, dict)
+                                else tc.function.arguments,
                             },
                         }
                         for tc in msg.tool_calls
@@ -160,11 +164,13 @@ class LLMClient:
                 api_messages.append(message_dict)
 
             elif msg.role == "tool":
-                api_messages.append({
-                    "role": "tool",
-                    "tool_call_id": msg.tool_call_id,
-                    "content": msg.content,
-                })
+                api_messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": msg.tool_call_id,
+                        "content": msg.content,
+                    }
+                )
 
         return system_message, api_messages
 
@@ -178,14 +184,16 @@ class LLMClient:
             if "type" in tool and tool["type"] == "function":
                 openai_tools.append(tool)
             else:
-                openai_tools.append({
-                    "type": "function",
-                    "function": {
-                        "name": tool.get("name"),
-                        "description": tool.get("description", ""),
-                        "parameters": tool.get("input_schema") or tool.get("parameters", {}),
+                openai_tools.append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool.get("name"),
+                            "description": tool.get("description", ""),
+                            "parameters": tool.get("input_schema") or tool.get("parameters", {}),
+                        },
                     }
-                })
+                )
         return openai_tools
 
     async def _make_api_request(
@@ -246,13 +254,15 @@ class LLMClient:
         openai_tools = self._convert_tools(tools)
 
         if self.retry_config.enabled:
-            retry_decorator = async_retry(
-                config=self.retry_config, on_retry=self.retry_callback
-            )
+            retry_decorator = async_retry(config=self.retry_config, on_retry=self.retry_callback)
             api_call = retry_decorator(self._make_api_request)
-            response = await api_call(api_messages, system_message, openai_tools, max_tokens, metadata)
+            response = await api_call(
+                api_messages, system_message, openai_tools, max_tokens, metadata
+            )
         else:
-            response = await self._make_api_request(api_messages, system_message, openai_tools, max_tokens, metadata)
+            response = await self._make_api_request(
+                api_messages, system_message, openai_tools, max_tokens, metadata
+            )
 
         choice = response.choices[0]
         message = choice.message

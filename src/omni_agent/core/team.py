@@ -47,9 +47,9 @@
     # 执行任务
     response = await team.run("研究 Python asyncio 并写一篇文章")
 """
+
 import asyncio
 import time
-from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from omni_agent.core.agent import Agent
@@ -59,12 +59,12 @@ from omni_agent.core.session import RunRecord
 from omni_agent.core.session_manager import UnifiedTeamSessionManager
 from omni_agent.core.trace_logger import TraceLogger, get_current_trace, set_current_trace
 from omni_agent.schemas.team import (
+    DependencyRunResponse,
+    MemberRunResult,
+    TaskWithDependencies,
     TeamConfig,
     TeamMemberConfig,
-    MemberRunResult,
     TeamRunResponse,
-    TaskWithDependencies,
-    DependencyRunResponse,
 )
 from omni_agent.tools.base import Tool
 from omni_agent.tools.function_tool import create_tool_from_function
@@ -92,9 +92,9 @@ class Team:
         self,
         config: TeamConfig,
         llm_client: LLMClient,
-        available_tools: Optional[List[Tool]] = None,
+        available_tools: list[Tool] | None = None,
         workspace_dir: str = "./workspace",
-        session_manager: Optional[UnifiedTeamSessionManager] = None,
+        session_manager: UnifiedTeamSessionManager | None = None,
         enable_spawn_agent: bool = True,
         spawn_agent_max_depth: int = 3,
         spawn_agent_default_max_steps: int = 15,
@@ -116,9 +116,9 @@ class Team:
         self.current_depth = current_depth  # Team execution counts as depth
 
         # Track member runs (for current execution)
-        self.member_runs: List[MemberRunResult] = []
+        self.member_runs: list[MemberRunResult] = []
         self.iteration_count = 0
-        self._current_run_id: Optional[str] = None  # Track current leader run ID
+        self._current_run_id: str | None = None  # Track current leader run ID
 
     def _build_leader_system_prompt(self, history_context: str = "") -> str:
         """构建 Leader Agent 的系统提示词.
@@ -191,7 +191,7 @@ Your task is to coordinate the team to complete the user's request.
 </team_name>
 
 <team_description>
-{self.config.description or 'A collaborative team of specialized agents'}
+{self.config.description or "A collaborative team of specialized agents"}
 </team_description>
 
 <team_members>
@@ -226,8 +226,8 @@ Use the previous interactions to maintain continuity and context.
         self,
         member_config: TeamMemberConfig,
         task: str,
-        session_id: Optional[str] = None,
-        depth: int = 1
+        session_id: str | None = None,
+        depth: int = 1,
     ) -> MemberRunResult:
         """执行特定团队成员的任务.
 
@@ -246,11 +246,7 @@ Use the previous interactions to maintain continuity and context.
         trace = get_current_trace()
         if trace:
             trace.log_agent_start(
-                member_config.name,
-                member_config.role,
-                task,
-                parent_agent="Leader",
-                depth=depth
+                member_config.name, member_config.role, task, parent_agent="Leader", depth=depth
             )
 
         try:
@@ -261,10 +257,11 @@ Use the previous interactions to maintain continuity and context.
                         member_tools.append(tool)
 
                 # Add SpawnAgentTool if member has it in their tools and it's enabled
-                if (self.enable_spawn_agent and
-                    "spawn_agent" in member_config.tools and
-                    self.current_depth < self.spawn_agent_max_depth):
-
+                if (
+                    self.enable_spawn_agent
+                    and "spawn_agent" in member_config.tools
+                    and self.current_depth < self.spawn_agent_max_depth
+                ):
                     # Create parent tools dict for spawn agents (member's other tools)
                     parent_tools = {t.name: t for t in member_tools}
 
@@ -282,7 +279,7 @@ Use the previous interactions to maintain continuity and context.
             # Create member-specific system prompt
             system_prompt = f"""You are {member_config.name}, a {member_config.role}.
 
-{member_config.instructions or ''}
+{member_config.instructions or ""}
 
 Focus on your area of expertise and provide clear, actionable responses.
 """
@@ -294,7 +291,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                 system_prompt=system_prompt,
                 workspace_dir=self.workspace_dir,
                 max_steps=10,  # Limit steps for members
-                enable_logging=False  # Don't create separate logs for members
+                enable_logging=False,  # Don't create separate logs for members
             )
 
             member_agent.add_user_message(task)
@@ -320,11 +317,18 @@ Focus on your area of expertise and provide clear, actionable responses.
                 response=response_content,
                 success=success,
                 steps=steps,
-                metadata={"input_tokens": input_tokens, "output_tokens": output_tokens}
+                metadata={"input_tokens": input_tokens, "output_tokens": output_tokens},
             )
 
             if trace:
-                trace.log_agent_end(member_config.name, success, response_content, steps, input_tokens, output_tokens)
+                trace.log_agent_end(
+                    member_config.name,
+                    success,
+                    response_content,
+                    steps,
+                    input_tokens,
+                    output_tokens,
+                )
 
             self.member_runs.append(result)
 
@@ -340,7 +344,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                     success=result.success,
                     steps=result.steps,
                     timestamp=time.time(),
-                    metadata={"role": member_config.role, "logs": logs}
+                    metadata={"role": member_config.role, "logs": logs},
                 )
                 await self.session_manager.add_run(session_id, member_run_record)
 
@@ -357,7 +361,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                 response="",
                 success=False,
                 error=str(e),
-                steps=0
+                steps=0,
             )
             self.member_runs.append(result)
 
@@ -373,7 +377,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                     success=False,
                     steps=0,
                     timestamp=time.time(),
-                    metadata={"role": member_config.role, "error": str(e)}
+                    metadata={"role": member_config.role, "error": str(e)},
                 )
                 await self.session_manager.add_run(session_id, member_run_record)
 
@@ -383,11 +387,11 @@ Focus on your area of expertise and provide clear, actionable responses.
         self,
         message: str,
         max_steps: int = 50,
-        session_id: Optional[str] = None,
-        user_id: Optional[str] = None,
+        session_id: str | None = None,
+        user_id: str | None = None,
         num_history_runs: int = 3,
-        run_context: Optional[RunContext] = None,
-        cancel_event: Optional[asyncio.Event] = None,
+        run_context: RunContext | None = None,
+        cancel_event: asyncio.Event | None = None,
     ) -> TeamRunResponse:
         """执行团队任务（标准模式）.
 
@@ -426,10 +430,10 @@ Focus on your area of expertise and provide clear, actionable responses.
             self._current_run_id = run_context.run_id
 
         trace = TraceLogger()
-        trace.start_trace("team", {
-            "team_name": self.config.name,
-            "members": [m.name for m in self.config.members]
-        })
+        trace.start_trace(
+            "team",
+            {"team_name": self.config.name, "members": [m.name for m in self.config.members]},
+        )
         set_current_trace(trace)
 
         try:
@@ -440,7 +444,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                 session = await self.session_manager.get_session(
                     session_id=run_context.session_id,
                     team_name=self.config.name,
-                    user_id=run_context.user_id
+                    user_id=run_context.user_id,
                 )
                 history_context = session.get_history_context(num_runs=num_history_runs)
 
@@ -449,6 +453,7 @@ Focus on your area of expertise and provide clear, actionable responses.
 
             # Create delegation tool dynamically (closure captures run_context)
             if self.config.delegate_to_all:
+
                 async def delegate_task_to_all_members(task: str) -> str:
                     """Delegate a task to ALL team members at once.
 
@@ -471,6 +476,7 @@ Focus on your area of expertise and provide clear, actionable responses.
 
                 delegate_tool = create_tool_from_function(delegate_task_to_all_members)
             else:
+
                 async def delegate_task_to_member(member_id: str, task: str) -> str:
                     """Delegate a task to a specific team member by their ID.
 
@@ -512,15 +518,15 @@ Focus on your area of expertise and provide clear, actionable responses.
                             "member_id": {
                                 "type": "string",
                                 "enum": [m.id for m in self.config.members],
-                                "description": f"ID of the team member to delegate to. Available: {', '.join([f'{m.id} ({m.name})' for m in self.config.members])}"
+                                "description": f"ID of the team member to delegate to. Available: {', '.join([f'{m.id} ({m.name})' for m in self.config.members])}",
                             },
                             "task": {
                                 "type": "string",
-                                "description": "Clear description of the task to delegate"
-                            }
+                                "description": "Clear description of the task to delegate",
+                            },
                         },
-                        "required": ["member_id", "task"]
-                    }
+                        "required": ["member_id", "task"],
+                    },
                 )
 
             leader_tools = [delegate_tool]
@@ -567,14 +573,18 @@ Focus on your area of expertise and provide clear, actionable responses.
                     success=success,
                     steps=total_steps,
                     timestamp=time.time(),
-                    metadata={
-                        "logs": logs,
-                        "member_count": len(self.member_runs)
-                    }
+                    metadata={"logs": logs, "member_count": len(self.member_runs)},
                 )
                 await self.session_manager.add_run(run_context.session_id, leader_run_record)
 
-            trace.log_agent_end("Leader", success, response_content, leader_steps, leader_input_tokens, leader_output_tokens)
+            trace.log_agent_end(
+                "Leader",
+                success,
+                response_content,
+                leader_steps,
+                leader_input_tokens,
+                leader_output_tokens,
+            )
             trace.end_trace(success=success, result=response_content)
             set_current_trace(None)
 
@@ -591,7 +601,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                     "trace_id": trace.trace_id,
                     "input_tokens": leader_input_tokens,
                     "output_tokens": leader_output_tokens,
-                }
+                },
             )
 
         except Exception as e:
@@ -610,7 +620,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                     success=False,
                     steps=0,
                     timestamp=time.time(),
-                    metadata={"error": str(e)}
+                    metadata={"error": str(e)},
                 )
                 await self.session_manager.add_run(run_context.session_id, error_run_record)
 
@@ -621,12 +631,16 @@ Focus on your area of expertise and provide clear, actionable responses.
                 member_runs=self.member_runs,
                 total_steps=0,
                 iterations=len(self.member_runs),
-                metadata={"error": str(e), "run_id": self._current_run_id, "trace_id": trace.trace_id}
+                metadata={
+                    "error": str(e),
+                    "run_id": self._current_run_id,
+                    "trace_id": trace.trace_id,
+                },
             )
 
     def _resolve_dependencies(
-        self, tasks: List[TaskWithDependencies]
-    ) -> List[List[TaskWithDependencies]]:
+        self, tasks: list[TaskWithDependencies]
+    ) -> list[list[TaskWithDependencies]]:
         """使用拓扑排序解析任务依赖关系.
 
         将 DAG 任务图分解为可并行执行的层级结构。
@@ -650,14 +664,10 @@ Focus on your area of expertise and provide clear, actionable responses.
                     raise ValueError(f"Task '{task.id}' depends on non-existent task '{dep_id}'")
 
         layers = []
-        remaining = set(task.id for task in tasks)
+        remaining = {task.id for task in tasks}
 
         while remaining:
-            current_layer = [
-                task_map[task_id]
-                for task_id in remaining
-                if in_degree[task_id] == 0
-            ]
+            current_layer = [task_map[task_id] for task_id in remaining if in_degree[task_id] == 0]
 
             if not current_layer:
                 raise ValueError(f"Circular dependency detected among tasks: {remaining}")
@@ -675,8 +685,8 @@ Focus on your area of expertise and provide clear, actionable responses.
     async def _execute_task_with_context(
         self,
         task: TaskWithDependencies,
-        completed_results: Dict[str, str],
-        session_id: Optional[str] = None,
+        completed_results: dict[str, str],
+        session_id: str | None = None,
         layer: int = 0,
     ) -> TaskWithDependencies:
         """执行单个任务，注入依赖任务的结果作为上下文.
@@ -751,9 +761,9 @@ Focus on your area of expertise and provide clear, actionable responses.
 
     async def run_with_dependencies(
         self,
-        tasks: List[TaskWithDependencies],
-        session_id: Optional[str] = None,
-        user_id: Optional[str] = None,
+        tasks: list[TaskWithDependencies],
+        session_id: str | None = None,
+        user_id: str | None = None,
     ) -> DependencyRunResponse:
         """执行带依赖关系的任务集（依赖模式）.
 
@@ -771,11 +781,14 @@ Focus on your area of expertise and provide clear, actionable responses.
         self._current_run_id = str(uuid4())
 
         trace = TraceLogger()
-        trace.start_trace("dependency_workflow", {
-            "team_name": self.config.name,
-            "task_count": len(tasks),
-            "task_ids": [t.id for t in tasks]
-        })
+        trace.start_trace(
+            "dependency_workflow",
+            {
+                "team_name": self.config.name,
+                "task_count": len(tasks),
+                "task_ids": [t.id for t in tasks],
+            },
+        )
         set_current_trace(trace)
 
         try:
@@ -791,10 +804,14 @@ Focus on your area of expertise and provide clear, actionable responses.
                         task.id, task.task, task.assigned_to, task.depends_on, layer_idx
                     )
 
-                layer_results = await asyncio.gather(*[
-                    self._execute_task_with_context(task, completed_results, session_id, layer_idx)
-                    for task in layer
-                ])
+                layer_results = await asyncio.gather(
+                    *[
+                        self._execute_task_with_context(
+                            task, completed_results, session_id, layer_idx
+                        )
+                        for task in layer
+                    ]
+                )
 
                 for task in layer_results:
                     completed_results[task.id] = task.result or ""
@@ -802,14 +819,16 @@ Focus on your area of expertise and provide clear, actionable responses.
 
                     if task.status == "failed":
                         remaining_tasks = []
-                        for remaining_layer in layers[layer_idx + 1:]:
+                        for remaining_layer in layers[layer_idx + 1 :]:
                             remaining_tasks.extend(remaining_layer)
 
                         for remaining_task in remaining_tasks:
                             remaining_task.status = "skipped"
                             remaining_task.result = f"Skipped due to dependency failure: {task.id}"
 
-                        final_message = f"执行失败：任务 '{task.id}' 执行失败\n\n失败详情:\n{task.result}"
+                        final_message = (
+                            f"执行失败：任务 '{task.id}' 执行失败\n\n失败详情:\n{task.result}"
+                        )
 
                         trace.end_trace(success=False, result=final_message)
                         set_current_trace(None)
@@ -830,7 +849,11 @@ Focus on your area of expertise and provide clear, actionable responses.
                             tasks=tasks,
                             execution_order=execution_order,
                             total_steps=total_steps,
-                            metadata={"run_id": self._current_run_id, "failed_task": task.id, "trace_id": trace.trace_id},
+                            metadata={
+                                "run_id": self._current_run_id,
+                                "failed_task": task.id,
+                                "trace_id": trace.trace_id,
+                            },
                         )
 
             completed_tasks = [t for t in tasks if t.status == "completed"]
@@ -883,13 +906,17 @@ Focus on your area of expertise and provide clear, actionable responses.
                 tasks=tasks,
                 execution_order=[],
                 total_steps=0,
-                metadata={"error": str(e), "run_id": self._current_run_id, "trace_id": trace.trace_id},
+                metadata={
+                    "error": str(e),
+                    "run_id": self._current_run_id,
+                    "trace_id": trace.trace_id,
+                },
             )
 
     async def _save_dependency_run_to_session(
         self,
         session_id: str,
-        tasks: List[TaskWithDependencies],
+        tasks: list[TaskWithDependencies],
         final_message: str,
         success: bool,
         total_steps: int,

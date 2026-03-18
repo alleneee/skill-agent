@@ -8,8 +8,9 @@
 RunContext 用于在框架各层级之间传递上下文信息（如 Team 到 Member Agent），
 避免使用全局变量或线程本地存储，参考 agno 的 RunContext 设计。
 """
+
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 @dataclass
@@ -49,12 +50,12 @@ class RunContext:
 
     run_id: str
     session_id: str
-    user_id: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
-    session_state: Optional[Dict[str, Any]] = None
-    dependencies: Optional[Dict[str, Any]] = None
+    user_id: str | None = None
+    metadata: dict[str, Any] | None = None
+    session_state: dict[str, Any] | None = None
+    dependencies: dict[str, Any] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "run_id": self.run_id,

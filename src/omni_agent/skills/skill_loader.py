@@ -8,7 +8,6 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import yaml
 
@@ -152,7 +151,9 @@ class SkillLoader:
             return match.group(0)
 
         # 匹配模式如: "see reference.md" 或 "read forms.md"
-        pattern_docs = r"(see|read|refer to|check)\s+([a-zA-Z0-9_-]+\.(?:md|txt|json|yaml))([.,;\s])"
+        pattern_docs = (
+            r"(see|read|refer to|check)\s+([a-zA-Z0-9_-]+\.(?:md|txt|json|yaml))([.,;\s])"
+        )
         content = re.sub(pattern_docs, replace_doc_path, content, flags=re.IGNORECASE)
 
         # Pattern 3: Markdown 链接 - 支持多种格式:
@@ -241,9 +242,7 @@ class SkillLoader:
         prompt_parts.append(
             "You have access to specialized skills. Each skill provides expert guidance for specific tasks.\n"
         )
-        prompt_parts.append(
-            "Load a skill's full content using the `get_skill` tool when needed.\n"
-        )
+        prompt_parts.append("Load a skill's full content using the `get_skill` tool when needed.\n")
 
         # 列出所有 skills 及其描述
         for skill in self.loaded_skills.values():

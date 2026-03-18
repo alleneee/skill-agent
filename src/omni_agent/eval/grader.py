@@ -27,16 +27,11 @@ class GradeResult:
 
 class BaseGrader(ABC):
     @abstractmethod
-    async def grade(
-        self, case: EvalCase, workspace: Path, result: str
-    ) -> GradeResult:
-        ...
+    async def grade(self, case: EvalCase, workspace: Path, result: str) -> GradeResult: ...
 
 
 class OutcomeGrader(BaseGrader):
-    async def grade(
-        self, case: EvalCase, workspace: Path, result: str
-    ) -> GradeResult:
+    async def grade(self, case: EvalCase, workspace: Path, result: str) -> GradeResult:
         checks = case.grading.get("checks", [])
         if not checks:
             return GradeResult.success(reason="no checks defined")
@@ -74,9 +69,7 @@ class OutcomeGrader(BaseGrader):
             return self._check_result_matches(check["result_matches"], result)
         return False, f"unknown check type: {list(check.keys())}"
 
-    def _check_file_contains(
-        self, args: list[str], workspace: Path
-    ) -> tuple[bool, str]:
+    def _check_file_contains(self, args: list[str], workspace: Path) -> tuple[bool, str]:
         filepath, pattern = args[0], args[1]
         target = workspace / filepath
         if not target.exists():
@@ -86,17 +79,13 @@ class OutcomeGrader(BaseGrader):
             return True, ""
         return False, f"file {filepath} does not contain '{pattern}'"
 
-    def _check_file_exists(
-        self, filepath: str, workspace: Path
-    ) -> tuple[bool, str]:
+    def _check_file_exists(self, filepath: str, workspace: Path) -> tuple[bool, str]:
         target = workspace / filepath
         if target.exists():
             return True, ""
         return False, f"file {filepath} not found"
 
-    def _check_file_not_contains(
-        self, args: list[str], workspace: Path
-    ) -> tuple[bool, str]:
+    def _check_file_not_contains(self, args: list[str], workspace: Path) -> tuple[bool, str]:
         filepath, pattern = args[0], args[1]
         target = workspace / filepath
         if not target.exists():
@@ -106,16 +95,12 @@ class OutcomeGrader(BaseGrader):
             return True, ""
         return False, f"file {filepath} unexpectedly contains '{pattern}'"
 
-    def _check_result_contains(
-        self, pattern: str, result: str
-    ) -> tuple[bool, str]:
+    def _check_result_contains(self, pattern: str, result: str) -> tuple[bool, str]:
         if pattern in result:
             return True, ""
         return False, f"result does not contain '{pattern}'"
 
-    def _check_result_matches(
-        self, pattern: str, result: str
-    ) -> tuple[bool, str]:
+    def _check_result_matches(self, pattern: str, result: str) -> tuple[bool, str]:
         if re.search(pattern, result):
             return True, ""
         return False, f"result does not match pattern '{pattern}'"
@@ -126,9 +111,7 @@ class LLMGrader(BaseGrader):
         self._llm = llm_client
         self._model = model
 
-    async def grade(
-        self, case: EvalCase, workspace: Path, result: str
-    ) -> GradeResult:
+    async def grade(self, case: EvalCase, workspace: Path, result: str) -> GradeResult:
         dimensions = case.grading.get("dimensions", ["completeness", "correctness"])
         criteria = case.grading.get("criteria", "")
 
@@ -162,16 +145,16 @@ class LLMGrader(BaseGrader):
             f'"dimensions": {{"dim_name": {{"score": float, "reason": str}}}}}}'
         )
 
-    def _parse_judge_response(
-        self, response: dict[str, Any], dimensions: list[str]
-    ) -> GradeResult:
+    def _parse_judge_response(self, response: dict[str, Any], dimensions: list[str]) -> GradeResult:
         import json
 
         content = response.get("content", "")
         try:
             json_match = re.search(r"\{.*\}", content, re.DOTALL)
             if not json_match:
-                return GradeResult.failure(reason=f"LLM judge returned unparseable: {content[:200]}")
+                return GradeResult.failure(
+                    reason=f"LLM judge returned unparseable: {content[:200]}"
+                )
             data = json.loads(json_match.group())
             return GradeResult(
                 passed=data.get("overall_pass", False),

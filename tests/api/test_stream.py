@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """测试 Agent API 的脚本"""
 
-import httpx
 import asyncio
+
+import httpx
 
 
 async def test_agent_run():

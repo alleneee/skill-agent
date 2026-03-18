@@ -4,7 +4,6 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 
 class PlanStatus(Enum):
@@ -48,7 +47,7 @@ class Plan:
         return sum(1 for s in self.steps if s.done) / len(self.steps)
 
     @property
-    def current_step_index(self) -> Optional[int]:
+    def current_step_index(self) -> int | None:
         for i, step in enumerate(self.steps):
             if not step.done:
                 return i
@@ -143,7 +142,7 @@ class Plan:
         (plan_dir / "plan.md").write_text(self.to_markdown())
 
     @classmethod
-    def load(cls, workspace: Path) -> Optional[Plan]:
+    def load(cls, workspace: Path) -> Plan | None:
         path = workspace / ".agent" / "plan.md"
         if path.exists():
             return cls.from_markdown(path.read_text())

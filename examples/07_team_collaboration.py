@@ -20,7 +20,7 @@ load_dotenv()
 from omni_agent.core import LLMClient, WorkspaceManager
 from omni_agent.core.team import Team
 from omni_agent.schemas.team import TeamConfig, TeamMemberConfig
-from omni_agent.tools.file_tools import ReadTool, WriteTool, EditTool
+from omni_agent.tools.file_tools import EditTool, ReadTool, WriteTool
 
 
 async def main():
@@ -79,7 +79,7 @@ async def main():
         workspace_dir=str(workspace_path),
     )
 
-    print(f"\n=== Team 多 Agent 协作 ===\n")
+    print("\n=== Team 多 Agent 协作 ===\n")
     print(f"团队名称: {config.name}")
     print(f"成员数量: {len(config.members)}")
     for member in config.members:
@@ -103,7 +103,9 @@ async def main():
         for run in result.member_runs:
             print(f"\n[{run.member_name}] ({run.member_role})")
             print(f"任务: {run.task}")
-            response_preview = run.response[:200] + "..." if len(run.response) > 200 else run.response
+            response_preview = (
+                run.response[:200] + "..." if len(run.response) > 200 else run.response
+            )
             print(f"结果: {response_preview}")
 
     print(f"\n文件已保存在: {workspace_path}")

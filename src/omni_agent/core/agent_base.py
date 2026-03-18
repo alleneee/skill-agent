@@ -5,8 +5,9 @@
 
 import asyncio
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from enum import Enum
-from typing import Any, AsyncIterator, Optional
+from typing import Any
 from uuid import uuid4
 
 from omni_agent.schemas.message import Message
@@ -35,16 +36,16 @@ class AgentBase(ABC):
 
     def __init__(
         self,
-        name: Optional[str] = None,
+        name: str | None = None,
         max_steps: int = 50,
     ) -> None:
         self.id = str(uuid4())
         self.name = name or "agent"
         self.max_steps = max_steps
         self._status = AgentStatus.IDLE
-        self._current_task: Optional[asyncio.Task] = None
-        self._cancel_event: Optional[asyncio.Event] = None
-        self._subscribers: dict[str, list["AgentBase"]] = {}
+        self._current_task: asyncio.Task | None = None
+        self._cancel_event: asyncio.Event | None = None
+        self._subscribers: dict[str, list[AgentBase]] = {}
 
     @property
     def status(self) -> AgentStatus:
@@ -102,7 +103,7 @@ class AgentBase(ABC):
         if hub_name in self._subscribers and agent in self._subscribers[hub_name]:
             self._subscribers[hub_name].remove(agent)
 
-    def clear_subscribers(self, hub_name: Optional[str] = None) -> None:
+    def clear_subscribers(self, hub_name: str | None = None) -> None:
         """清除订阅者"""
         if hub_name:
             self._subscribers.pop(hub_name, None)

@@ -1,7 +1,18 @@
 """API v1 路由器，聚合所有 v1 端点。"""
+
 from fastapi import APIRouter
 
-from omni_agent.api.v1.endpoints import acp, agent, feedback, health, knowledge, memory, team, tools, trace
+from omni_agent.api.v1.endpoints import (
+    acp,
+    agent,
+    feedback,
+    health,
+    knowledge,
+    memory,
+    team,
+    tools,
+    trace,
+)
 from omni_agent.core.config import settings
 
 api_router = APIRouter()

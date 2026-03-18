@@ -2,7 +2,8 @@
 
 提供工具结果缓存访问和工作记忆操作能力。
 """
-from typing import Any, Optional
+
+from typing import Any
 
 from omni_agent.core.ralph import ContextManager, WorkingMemory
 from omni_agent.tools.base import Tool, ToolResult
@@ -10,10 +11,11 @@ from omni_agent.tools.base import Tool, ToolResult
 
 class GetCachedResultTool(Tool):
     """获取缓存的工具结果.
-    
+
     在 Ralph 模式下，工具结果会被摘要化以节省上下文。
     此工具用于检索之前执行的工具的完整结果内容。
     """
+
     def __init__(self, context_manager: ContextManager) -> None:
         self._context_manager = context_manager
 
@@ -54,10 +56,11 @@ class GetCachedResultTool(Tool):
 
 class UpdateWorkingMemoryTool(Tool):
     """更新工作记忆.
-    
+
     允许 Agent 在 Ralph 迭代过程中记录进度、发现、待办事项、决策和错误。
     这些信息会持久化到文件系统，跨迭代保持。
     """
+
     def __init__(self, working_memory: WorkingMemory) -> None:
         self._memory = working_memory
 
@@ -79,7 +82,14 @@ class UpdateWorkingMemoryTool(Tool):
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["add_progress", "add_finding", "add_todo", "complete_todo", "add_decision", "add_error"],
+                    "enum": [
+                        "add_progress",
+                        "add_finding",
+                        "add_todo",
+                        "complete_todo",
+                        "add_decision",
+                        "add_error",
+                    ],
                     "description": "The type of memory update to perform",
                 },
                 "content": {
@@ -106,9 +116,9 @@ class UpdateWorkingMemoryTool(Tool):
         self,
         action: str,
         content: str,
-        reason: Optional[str] = None,
-        todo_key: Optional[str] = None,
-        context: Optional[str] = None,
+        reason: str | None = None,
+        todo_key: str | None = None,
+        context: str | None = None,
     ) -> ToolResult:
         try:
             if action == "add_progress":
@@ -125,7 +135,9 @@ class UpdateWorkingMemoryTool(Tool):
 
             elif action == "complete_todo":
                 if not todo_key:
-                    return ToolResult(success=False, error="todo_key is required for complete_todo action")
+                    return ToolResult(
+                        success=False, error="todo_key is required for complete_todo action"
+                    )
                 success = self._memory.complete_todo(todo_key)
                 if success:
                     return ToolResult(success=True, content=f"Todo {todo_key} marked complete")
@@ -133,7 +145,9 @@ class UpdateWorkingMemoryTool(Tool):
 
             elif action == "add_decision":
                 if not reason:
-                    return ToolResult(success=False, error="reason is required for add_decision action")
+                    return ToolResult(
+                        success=False, error="reason is required for add_decision action"
+                    )
                 self._memory.add_decision(content, reason)
                 return ToolResult(success=True, content="Decision recorded")
 
@@ -150,10 +164,11 @@ class UpdateWorkingMemoryTool(Tool):
 
 class GetWorkingMemoryTool(Tool):
     """获取工作记忆.
-    
+
     检索当前工作记忆的摘要，包括进度、发现、待办事项、决策和错误。
     支持按类别过滤或获取全部内容。
     """
+
     def __init__(self, working_memory: WorkingMemory) -> None:
         self._memory = working_memory
 
@@ -214,11 +229,12 @@ class GetWorkingMemoryTool(Tool):
 
 class SignalCompletionTool(Tool):
     """发送完成信号.
-    
+
     当 Agent 确认任务完成时调用此工具。
     输出包含 <promise>TASK COMPLETE</promise> 标签，
     CompletionDetector 会检测此标签并终止 Ralph 循环。
     """
+
     @property
     def name(self) -> str:
         return "signal_completion"

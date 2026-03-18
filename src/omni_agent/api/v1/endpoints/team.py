@@ -3,21 +3,24 @@
 
 使用团队系统，其中 Leader Agent 智能地将任务委派给成员。
 """
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
-from fastapi import APIRouter, HTTPException, Depends
 
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+
+from omni_agent.api.deps import get_llm_client, get_session_manager, get_tools
+from omni_agent.core.session_manager import UnifiedTeamSessionManager
 from omni_agent.core.team import Team
 from omni_agent.schemas.team import (
-    TeamConfig,
-    TeamMemberConfig,
-    TeamRunResponse as TeamRunResponseSchema,
-    TaskWithDependencies,
     DependencyRunRequest,
     DependencyRunResponse,
+    TeamConfig,
+    TeamMemberConfig,
 )
-from omni_agent.api.deps import get_llm_client, get_tools, get_session_manager
-from omni_agent.core.session_manager import UnifiedTeamSessionManager
+from omni_agent.schemas.team import (
+    TeamRunResponse as TeamRunResponseSchema,
+)
 from omni_agent.utils.logger import logger
 
 router = APIRouter(prefix="/team", tags=["team"])
@@ -28,69 +31,67 @@ ROLE_CONFIGS = {
     "researcher": {
         "role": "Research Specialist",
         "instructions": "你是研究员，擅长搜索信息、阅读资料并总结要点。专注于收集准确、全面的信息。",
-        "tools": ["read", "bash"]
+        "tools": ["read", "bash"],
     },
     "writer": {
         "role": "Writing Expert",
         "instructions": "你是写作专家，擅长将信息组织成清晰、结构化的文档。注重内容的逻辑性和可读性。",
-        "tools": ["write", "edit"]
+        "tools": ["write", "edit"],
     },
     "coder": {
         "role": "Programming Expert",
         "instructions": "你是编程专家，擅长编写代码和解决技术问题。注重代码质量和最佳实践。",
-        "tools": ["write", "edit", "read", "bash"]
+        "tools": ["write", "edit", "read", "bash"],
     },
     "reviewer": {
         "role": "Quality Reviewer",
         "instructions": "你是审阅专家，负责检查内容的质量、准确性和完整性。提供建设性的反馈。",
-        "tools": ["read"]
+        "tools": ["read"],
     },
     "analyst": {
         "role": "Data Analyst",
         "instructions": "你是数据分析专家，擅长分析数据、提取洞察并生成报告。",
-        "tools": []  # 将获取所有工具
-    }
+        "tools": [],  # 将获取所有工具
+    },
 }
 
 
 class TeamRunRequest(BaseModel):
     """团队运行请求模型。"""
+
     message: str = Field(..., description="任务描述")
-    members: List[str] = Field(
+    members: list[str] = Field(
         default=["researcher", "writer"],
-        description="成员角色列表: researcher, writer, coder, reviewer, analyst"
+        description="成员角色列表: researcher, writer, coder, reviewer, analyst",
     )
     delegate_to_all: bool = Field(
-        default=False,
-        description="是否将任务广播给所有成员（而不是由 Leader 选择性委派）"
+        default=False, description="是否将任务广播给所有成员（而不是由 Leader 选择性委派）"
     )
-    team_name: Optional[str] = Field(default="AI Team", description="团队名称")
-    team_description: Optional[str] = Field(default=None, description="团队描述")
-    leader_instructions: Optional[str] = Field(default=None, description="Leader 的额外指令")
-    workspace_dir: Optional[str] = Field(default="./workspace", description="工作空间目录")
+    team_name: str | None = Field(default="AI Team", description="团队名称")
+    team_description: str | None = Field(default=None, description="团队描述")
+    leader_instructions: str | None = Field(default=None, description="Leader 的额外指令")
+    workspace_dir: str | None = Field(default="./workspace", description="工作空间目录")
     max_steps: int = Field(default=50, description="最大执行步数")
-    session_id: Optional[str] = Field(default=None, description="会话ID（用于多轮对话）")
+    session_id: str | None = Field(default=None, description="会话ID（用于多轮对话）")
 
 
 class TeamRunResponse(BaseModel):
     """团队运行响应模型。"""
+
     success: bool
     team_name: str
     message: str
-    member_runs: List[Dict[str, Any]] = Field(default_factory=list)
+    member_runs: list[dict[str, Any]] = Field(default_factory=list)
     total_steps: int = 0
     iterations: int = 0
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-def _build_team_config(
-    request: TeamRunRequest,
-    available_tools: List
-) -> TeamConfig:
+def _build_team_config(request: TeamRunRequest, available_tools: list) -> TeamConfig:
     """根据请求和可用工具构建 TeamConfig。"""
 
     # 获取所有工具名称用于过滤
-    all_tool_names = [getattr(t, 'name', '') for t in available_tools]
+    all_tool_names = [getattr(t, "name", "") for t in available_tools]
 
     # 构建成员配置
     members = []
@@ -105,27 +106,31 @@ def _build_team_config(
                 # 空列表表示所有工具（用于 analyst）
                 member_tools = all_tool_names
 
-            members.append(TeamMemberConfig(
-                name=role_name.capitalize(),
-                role=role_config["role"],
-                instructions=role_config["instructions"],
-                tools=member_tools
-            ))
+            members.append(
+                TeamMemberConfig(
+                    name=role_name.capitalize(),
+                    role=role_config["role"],
+                    instructions=role_config["instructions"],
+                    tools=member_tools,
+                )
+            )
         else:
             # 自定义角色
-            members.append(TeamMemberConfig(
-                name=role_name.capitalize(),
-                role=role_name,
-                instructions=f"你是{role_name}，请协助完成任务。",
-                tools=all_tool_names  # 给自定义角色分配所有工具
-            ))
+            members.append(
+                TeamMemberConfig(
+                    name=role_name.capitalize(),
+                    role=role_name,
+                    instructions=f"你是{role_name}，请协助完成任务。",
+                    tools=all_tool_names,  # 给自定义角色分配所有工具
+                )
+            )
 
     return TeamConfig(
         name=request.team_name or "AI Team",
         description=request.team_description,
         members=members,
         leader_instructions=request.leader_instructions,
-        delegate_to_all=request.delegate_to_all
+        delegate_to_all=request.delegate_to_all,
     )
 
 
@@ -134,7 +139,7 @@ async def run_team(
     request: TeamRunRequest,
     llm_client=Depends(get_llm_client),
     tools=Depends(get_tools),
-    session_manager: Optional[UnifiedTeamSessionManager] = Depends(get_session_manager)
+    session_manager: UnifiedTeamSessionManager | None = Depends(get_session_manager),
 ) -> TeamRunResponse:
     """执行多 Agent 团队任务。
 
@@ -184,15 +189,15 @@ async def run_team(
             llm_client=llm_client,
             available_tools=tools,
             workspace_dir=request.workspace_dir or "./workspace",
-            session_manager=session_manager  # 使用注入的全局会话管理器
+            session_manager=session_manager,  # 使用注入的全局会话管理器
         )
 
         # 执行任务
-        logger.info(f"Running team '{team_config.name}' with members={request.members}, session_id={request.session_id}")
+        logger.info(
+            f"Running team '{team_config.name}' with members={request.members}, session_id={request.session_id}"
+        )
         result: TeamRunResponseSchema = await team.run(
-            message=request.message,
-            max_steps=request.max_steps,
-            session_id=request.session_id
+            message=request.message, max_steps=request.max_steps, session_id=request.session_id
         )
 
         # 转换为响应
@@ -203,7 +208,7 @@ async def run_team(
             member_runs=[mr.model_dump() for mr in result.member_runs],
             total_steps=result.total_steps,
             iterations=result.iterations,
-            metadata=result.metadata
+            metadata=result.metadata,
         )
 
     except HTTPException:
@@ -214,7 +219,7 @@ async def run_team(
 
 
 @router.get("/roles")
-async def list_roles() -> Dict[str, Any]:
+async def list_roles() -> dict[str, Any]:
     """列出可用的团队成员角色。
 
     返回每个预定义角色的信息及其能力。
@@ -225,16 +230,16 @@ async def list_roles() -> Dict[str, Any]:
                 "name": name,
                 "role": config["role"],
                 "description": config["instructions"],
-                "default_tools": config["tools"] if config["tools"] else ["all"]
+                "default_tools": config["tools"] if config["tools"] else ["all"],
             }
             for name, config in ROLE_CONFIGS.items()
         ],
-        "note": "You can also use custom role names. Custom roles will have access to all tools."
+        "note": "You can also use custom role names. Custom roles will have access to all tools.",
     }
 
 
 @router.get("/health")
-async def team_health() -> Dict[str, str]:
+async def team_health() -> dict[str, str]:
     """团队端点的健康检查。"""
     return {"status": "healthy", "service": "team"}
 
@@ -244,7 +249,7 @@ async def run_team_with_dependencies(
     request: DependencyRunRequest,
     llm_client=Depends(get_llm_client),
     tools=Depends(get_tools),
-    session_manager: Optional[UnifiedTeamSessionManager] = Depends(get_session_manager)
+    session_manager: UnifiedTeamSessionManager | None = Depends(get_session_manager),
 ) -> DependencyRunResponse:
     """执行带明确依赖关系的团队任务。
 
@@ -323,8 +328,7 @@ async def run_team_with_dependencies(
         team_config = request.team_config
         if not team_config:
             raise HTTPException(
-                status_code=400,
-                detail="team_config is required for dependency-based execution"
+                status_code=400, detail="team_config is required for dependency-based execution"
             )
 
         team = Team(
@@ -332,7 +336,7 @@ async def run_team_with_dependencies(
             llm_client=llm_client,
             available_tools=tools,
             workspace_dir=request.workspace_dir or "./workspace",
-            session_manager=session_manager
+            session_manager=session_manager,
         )
 
         logger.info(
@@ -341,9 +345,7 @@ async def run_team_with_dependencies(
         )
 
         result = await team.run_with_dependencies(
-            tasks=request.tasks,
-            session_id=request.session_id,
-            user_id=request.user_id
+            tasks=request.tasks, session_id=request.session_id, user_id=request.user_id
         )
 
         return result

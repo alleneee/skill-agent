@@ -7,20 +7,18 @@ Requires:
 """
 
 import asyncio
-import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
+from omni_agent.api.deps import AgentFactory
 from omni_agent.core.agent import Agent
 from omni_agent.core.config import settings
 from omni_agent.core.llm_client import LLMClient
 from omni_agent.schemas.message import AgentConfig
 from omni_agent.tools.base import Tool, ToolResult
 from omni_agent.tools.spawn_agent_tool import SpawnAgentTool
-from omni_agent.tools.file_tools import ReadTool
-from omni_agent.api.deps import AgentFactory
 
 
 class SimpleMathTool(Tool):
@@ -41,10 +39,10 @@ class SimpleMathTool(Tool):
             "properties": {
                 "expression": {
                     "type": "string",
-                    "description": "Math expression to evaluate (e.g., '2 + 2')"
+                    "description": "Math expression to evaluate (e.g., '2 + 2')",
                 }
             },
-            "required": ["expression"]
+            "required": ["expression"],
         }
 
     async def execute(self, expression: str, **kwargs) -> ToolResult:
@@ -89,7 +87,7 @@ async def test_basic_spawn():
         task="Calculate 123 + 456 using the calculate tool and tell me the result.",
         role="math assistant",
         tools=["calculate"],
-        max_steps=5
+        max_steps=5,
     )
 
     print(f"  Success: {result.success}")
@@ -153,7 +151,9 @@ Use the spawn_agent tool with task describing what calculation to do.""",
 
     print(f"  Steps taken: {len([l for l in logs if l.get('type') == 'step'])}")
 
-    spawn_calls = [l for l in logs if l.get('type') == 'tool_call' and l.get('tool') == 'spawn_agent']
+    spawn_calls = [
+        l for l in logs if l.get("type") == "tool_call" and l.get("tool") == "spawn_agent"
+    ]
     print(f"  Spawn agents calls: {len(spawn_calls)}")
 
     print(f"  Result preview: {result[:300]}...")

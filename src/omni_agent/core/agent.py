@@ -20,30 +20,36 @@
     3. 每步: LLM 生成 -> 解析工具调用 -> 执行工具 -> 添加结果到消息
     4. 直到: 无工具调用（完成）/ max_steps / 等待用户输入 / 错误 / 取消
 """
+
 import asyncio
 import json
 import time
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Awaitable, Coroutine, Optional
+from typing import Any
 from uuid import uuid4
 
+from omni_agent.core.agent_base import AgentBase, AgentStatus
 from omni_agent.core.checkpoint import Checkpoint, CheckpointConfig
-from omni_agent.core.langfuse_tracing import get_tracer, LangfuseTracer
+from omni_agent.core.hooks import AgentHook, HookContext
+from omni_agent.core.langfuse_tracing import LangfuseTracer, get_tracer
 from omni_agent.core.llm_client import LLMClient
+from omni_agent.core.memory_hook import MemoryHook, create_memory_hook
+from omni_agent.core.planner import Plan, PlanStatus
+from omni_agent.core.prompt_builder import SystemPromptBuilder, SystemPromptConfig
+from omni_agent.core.ralph import RalphConfig, RalphLoop
 from omni_agent.core.token_manager import TokenManager
 from omni_agent.core.tool_executor import ToolExecutor
-from omni_agent.core.prompt_builder import SystemPromptConfig, SystemPromptBuilder
-from omni_agent.schemas.message import Message, UserInputRequest, UserInputField, ToolCall
+from omni_agent.schemas.message import Message, ToolCall, UserInputField, UserInputRequest
 from omni_agent.skills.skill_loader import SkillLoader
 from omni_agent.tools.base import Tool
-from omni_agent.tools.user_input_tool import GetUserInputTool, is_user_input_tool_call, parse_user_input_fields
-from omni_agent.core.ralph import RalphConfig, RalphLoop
-from omni_agent.core.hooks import AgentHook, HookContext
-from omni_agent.core.memory_hook import MemoryHook, create_memory_hook
-from omni_agent.core.agent_base import AgentBase, AgentStatus
-from omni_agent.core.planner import Plan, PlanStatus
+from omni_agent.tools.user_input_tool import (
+    GetUserInputTool,
+    is_user_input_tool_call,
+    parse_user_input_fields,
+)
 
 
 class EventType(Enum):
@@ -52,6 +58,7 @@ class EventType(Enum):
     定义 Agent 执行过程中可能触发的所有事件类型，
     用于事件驱动的执行流程和日志记录。
     """
+
     STEP_START = "step_start"
     STEP_END = "step_end"
     LLM_REQUEST = "llm_request"
@@ -73,9 +80,10 @@ class EventType(Enum):
 @dataclass
 class AgentEvent:
     """Agent 事件.
-    
+
     封装事件类型、数据、步骤和时间戳，用于事件分发。
     """
+
     type: EventType
     data: dict[str, Any]
     step: int = 0
@@ -87,9 +95,10 @@ EventHandler = Callable[[AgentEvent], Awaitable[None]]
 
 class EventEmitter:
     """事件分发器.
-    
+
     支持按事件类型注册处理器，也支持全局处理器接收所有事件。
     """
+
     def __init__(self) -> None:
         self._handlers: dict[EventType, list[EventHandler]] = {}
         self._global_handlers: list[EventHandler] = []
@@ -125,21 +134,22 @@ class EventEmitter:
 @dataclass
 class AgentState:
     """Agent 运行时状态.
-    
+
     管理 Agent 的完整运行时状态，包括执行状态、消息历史、
     token 统计、用户输入等待和断点续传支持。
     """
+
     status: AgentStatus = AgentStatus.IDLE
     current_step: int = 0
     max_steps: int = 50
     total_input_tokens: int = 0
     total_output_tokens: int = 0
     messages: list[Message] = field(default_factory=list)
-    pending_user_input: Optional[UserInputRequest] = None
-    paused_tool_call_id: Optional[str] = None
-    error_message: Optional[str] = None
-    last_checkpoint_id: Optional[str] = None
-    thread_id: Optional[str] = None
+    pending_user_input: UserInputRequest | None = None
+    paused_tool_call_id: str | None = None
+    error_message: str | None = None
+    last_checkpoint_id: str | None = None
+    thread_id: str | None = None
 
     def reset_for_run(self, preserve_messages: bool = False) -> None:
         self.status = AgentStatus.RUNNING
@@ -245,10 +255,11 @@ class AgentState:
 
 class HookManager:
     """Hook 管理器.
-    
+
     管理多个 AgentHook 实例，按优先级排序执行，
     支持 before_run、on_step、after_run 三个触发点。
     """
+
     def __init__(self) -> None:
         self._hooks: list[AgentHook] = []
 
@@ -282,10 +293,7 @@ class HookManager:
             await hook.on_feedback(ctx, feedback_type, data)
 
 
-ToolResultCallback = Callable[
-    [str, str, dict[str, Any], str],
-    Coroutine[Any, Any, None]
-]
+ToolResultCallback = Callable[[str, str, dict[str, Any], str], Coroutine[Any, Any, None]]
 
 
 @dataclass
@@ -299,11 +307,12 @@ class LoopConfig:
         on_tool_result: 工具执行后的回调 (tool_call_id, tool_name, arguments, content)
         cancel_event: 取消事件，设置后将中止执行
     """
+
     max_steps: int = 50
     parallel_tools: bool = False
-    checkpoint: Optional[CheckpointConfig] = None
-    on_tool_result: Optional[ToolResultCallback] = None
-    cancel_event: Optional[asyncio.Event] = None
+    checkpoint: CheckpointConfig | None = None
+    on_tool_result: ToolResultCallback | None = None
+    cancel_event: asyncio.Event | None = None
 
 
 @dataclass
@@ -317,11 +326,12 @@ class StepResult:
         content: 响应内容
         error: 错误信息（如有）
     """
+
     completed: bool = False
     waiting_input: bool = False
     cancelled: bool = False
     content: str = ""
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class AgentLoop:
@@ -335,21 +345,22 @@ class AgentLoop:
         2. 循环 _execute_step() 直到完成/max_steps/等待输入
         3. 每步: LLM 生成 -> 解析工具 -> 执行工具 -> 添加结果
     """
+
     def __init__(
         self,
         llm_client: LLMClient,
         tool_executor: ToolExecutor,
         token_manager: TokenManager,
         event_emitter: EventEmitter,
-        config: Optional[LoopConfig] = None,
-        agent_id: Optional[str] = None,
+        config: LoopConfig | None = None,
+        agent_id: str | None = None,
     ) -> None:
         self._llm = llm_client
         self._tool_executor = tool_executor
         self._token_manager = token_manager
         self._events = event_emitter
         self._config = config or LoopConfig()
-        self._tool_schemas: Optional[list[dict[str, Any]]] = None
+        self._tool_schemas: list[dict[str, Any]] | None = None
         self._agent_id = agent_id or str(uuid4())
         self._hooks = HookManager()
 
@@ -365,8 +376,8 @@ class AgentLoop:
         self,
         state: AgentState,
         trigger: str,
-        pending_tool_calls: Optional[list[ToolCall]] = None,
-    ) -> Optional[str]:
+        pending_tool_calls: list[ToolCall] | None = None,
+    ) -> str | None:
         if not self.checkpoint_enabled:
             return None
 
@@ -396,7 +407,7 @@ class AgentLoop:
                 limit=config.max_checkpoints_per_thread + 10,
             )
             if len(existing) > config.max_checkpoints_per_thread:
-                for old_cp in existing[config.max_checkpoints_per_thread:]:
+                for old_cp in existing[config.max_checkpoints_per_thread :]:
                     await storage.delete(old_cp.id)
 
         return checkpoint.id
@@ -445,7 +456,7 @@ class AgentLoop:
         if last_msg.tool_calls:
             expected_tool_results = {tc.id for tc in last_msg.tool_calls}
             actual_tool_results = set()
-            for msg in state.messages[last_assistant_idx + 1:]:
+            for msg in state.messages[last_assistant_idx + 1 :]:
                 if msg.role == "tool" and msg.tool_call_id:
                     actual_tool_results.add(msg.tool_call_id)
 
@@ -460,7 +471,7 @@ class AgentLoop:
         """设置取消事件。"""
         self._config.cancel_event = event
 
-    async def run(self, state: AgentState, metadata: Optional[dict[str, Any]] = None) -> str:
+    async def run(self, state: AgentState, metadata: dict[str, Any] | None = None) -> str:
         state.reset_for_run()
         state.max_steps = self._config.max_steps
 
@@ -472,11 +483,13 @@ class AgentLoop:
                 self._cleanup_incomplete_messages(state)
                 cancel_msg = "Task cancelled by user"
                 state.mark_cancelled(cancel_msg)
-                await self._events.emit(AgentEvent(
-                    type=EventType.CANCELLED,
-                    step=state.current_step,
-                    data={"message": cancel_msg},
-                ))
+                await self._events.emit(
+                    AgentEvent(
+                        type=EventType.CANCELLED,
+                        step=state.current_step,
+                        data={"message": cancel_msg},
+                    )
+                )
                 await self._hooks.trigger_after_run(ctx, cancel_msg, False)
                 return cancel_msg
 
@@ -489,29 +502,37 @@ class AgentLoop:
                 self._cleanup_incomplete_messages(state)
                 cancel_msg = "Task cancelled by user"
                 state.mark_cancelled(cancel_msg)
-                await self._events.emit(AgentEvent(
-                    type=EventType.CANCELLED,
-                    step=state.current_step,
-                    data={"message": cancel_msg},
-                ))
+                await self._events.emit(
+                    AgentEvent(
+                        type=EventType.CANCELLED,
+                        step=state.current_step,
+                        data={"message": cancel_msg},
+                    )
+                )
                 await self._hooks.trigger_after_run(ctx, cancel_msg, False)
                 return cancel_msg
 
-            step_data = {"completed": result.completed, "content": result.content, "error": result.error}
+            step_data = {
+                "completed": result.completed,
+                "content": result.content,
+                "error": result.error,
+            }
             await self._hooks.trigger_on_step(ctx, step_data)
 
             if result.completed:
                 state.mark_completed()
-                await self._events.emit(AgentEvent(
-                    type=EventType.COMPLETION,
-                    step=state.current_step,
-                    data={
-                        "message": result.content,
-                        "total_steps": state.current_step,
-                        "total_input_tokens": state.total_input_tokens,
-                        "total_output_tokens": state.total_output_tokens,
-                    },
-                ))
+                await self._events.emit(
+                    AgentEvent(
+                        type=EventType.COMPLETION,
+                        step=state.current_step,
+                        data={
+                            "message": result.content,
+                            "total_steps": state.current_step,
+                            "total_input_tokens": state.total_input_tokens,
+                            "total_output_tokens": state.total_output_tokens,
+                        },
+                    )
+                )
                 await self._hooks.trigger_after_run(ctx, result.content, True)
                 return result.content
 
@@ -521,28 +542,32 @@ class AgentLoop:
 
             if result.error:
                 state.mark_error(result.error)
-                await self._events.emit(AgentEvent(
-                    type=EventType.ERROR,
-                    step=state.current_step,
-                    data={"message": result.error},
-                ))
+                await self._events.emit(
+                    AgentEvent(
+                        type=EventType.ERROR,
+                        step=state.current_step,
+                        data={"message": result.error},
+                    )
+                )
                 await self._hooks.trigger_after_run(ctx, result.error, False)
                 return result.error
 
         error_msg = f"Task couldn't be completed after {self._config.max_steps} steps."
         state.mark_error(error_msg)
-        await self._events.emit(AgentEvent(
-            type=EventType.ERROR,
-            step=state.current_step,
-            data={"message": error_msg, "reason": "max_steps_reached"},
-        ))
+        await self._events.emit(
+            AgentEvent(
+                type=EventType.ERROR,
+                step=state.current_step,
+                data={"message": error_msg, "reason": "max_steps_reached"},
+            )
+        )
         await self._hooks.trigger_after_run(ctx, error_msg, False)
         return error_msg
 
     async def run_stream(
         self,
         state: AgentState,
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         state.reset_for_run()
         state.max_steps = self._config.max_steps
@@ -568,7 +593,9 @@ class AgentLoop:
                 if event["type"] == "cancelled":
                     self._cleanup_incomplete_messages(state)
                     state.mark_cancelled(event["data"].get("message", "Task cancelled"))
-                    await self._hooks.trigger_after_run(ctx, event["data"].get("message", ""), False)
+                    await self._hooks.trigger_after_run(
+                        ctx, event["data"].get("message", ""), False
+                    )
                     return
 
                 if event["type"] == "done":
@@ -582,7 +609,9 @@ class AgentLoop:
 
                 if event["type"] == "error":
                     state.mark_error(event["data"].get("message", "Unknown error"))
-                    await self._hooks.trigger_after_run(ctx, event["data"].get("message", ""), False)
+                    await self._hooks.trigger_after_run(
+                        ctx, event["data"].get("message", ""), False
+                    )
                     return
 
         error_msg = f"Task couldn't be completed after {self._config.max_steps} steps."
@@ -595,20 +624,22 @@ class AgentLoop:
     async def _execute_step(
         self,
         state: AgentState,
-        metadata: Optional[dict[str, Any]],
+        metadata: dict[str, Any] | None,
     ) -> StepResult:
         current_tokens = self._token_manager.estimate_tokens(state.messages)
         state.messages = await self._token_manager.maybe_summarize_messages(state.messages)
 
-        await self._events.emit(AgentEvent(
-            type=EventType.STEP_START,
-            step=state.current_step,
-            data={
-                "tokens": current_tokens,
-                "token_limit": self._token_manager.token_limit,
-                "max_steps": self._config.max_steps,
-            },
-        ))
+        await self._events.emit(
+            AgentEvent(
+                type=EventType.STEP_START,
+                step=state.current_step,
+                data={
+                    "tokens": current_tokens,
+                    "token_limit": self._token_manager.token_limit,
+                    "max_steps": self._config.max_steps,
+                },
+            )
+        )
 
         try:
             response = await self._llm.generate(
@@ -622,18 +653,20 @@ class AgentLoop:
         if response.usage:
             state.add_tokens(response.usage.input_tokens, response.usage.output_tokens)
 
-        await self._events.emit(AgentEvent(
-            type=EventType.LLM_RESPONSE,
-            step=state.current_step,
-            data={
-                "content": response.content,
-                "thinking": response.thinking,
-                "has_tool_calls": bool(response.tool_calls),
-                "tool_count": len(response.tool_calls) if response.tool_calls else 0,
-                "input_tokens": response.usage.input_tokens if response.usage else 0,
-                "output_tokens": response.usage.output_tokens if response.usage else 0,
-            },
-        ))
+        await self._events.emit(
+            AgentEvent(
+                type=EventType.LLM_RESPONSE,
+                step=state.current_step,
+                data={
+                    "content": response.content,
+                    "thinking": response.thinking,
+                    "has_tool_calls": bool(response.tool_calls),
+                    "tool_count": len(response.tool_calls) if response.tool_calls else 0,
+                    "input_tokens": response.usage.input_tokens if response.usage else 0,
+                    "output_tokens": response.usage.output_tokens if response.usage else 0,
+                },
+            )
+        )
 
         assistant_msg = Message(
             role="assistant",
@@ -663,15 +696,17 @@ class AgentLoop:
                 )
                 state.mark_waiting_input(request, tool_call.id)
 
-                await self._events.emit(AgentEvent(
-                    type=EventType.USER_INPUT_REQUIRED,
-                    step=state.current_step,
-                    data={
-                        "tool_call_id": tool_call.id,
-                        "fields": [f.model_dump() for f in input_fields],
-                        "context": tool_call.function.arguments.get("context"),
-                    },
-                ))
+                await self._events.emit(
+                    AgentEvent(
+                        type=EventType.USER_INPUT_REQUIRED,
+                        step=state.current_step,
+                        data={
+                            "tool_call_id": tool_call.id,
+                            "fields": [f.model_dump() for f in input_fields],
+                            "context": tool_call.function.arguments.get("context"),
+                        },
+                    )
+                )
 
                 ckpt_config = self._config.checkpoint
                 if self.checkpoint_enabled and ckpt_config and ckpt_config.save_on_user_input:
@@ -687,49 +722,60 @@ class AgentLoop:
             return StepResult(cancelled=True)
 
         tool_calls_data = [
-            (tc.id, tc.function.name, tc.function.arguments)
-            for tc in response.tool_calls
+            (tc.id, tc.function.name, tc.function.arguments) for tc in response.tool_calls
         ]
 
         for call_id, name, args in tool_calls_data:
-            await self._events.emit(AgentEvent(
-                type=EventType.TOOL_START,
-                step=state.current_step,
-                data={"tool": name, "arguments": args, "tool_call_id": call_id},
-            ))
+            await self._events.emit(
+                AgentEvent(
+                    type=EventType.TOOL_START,
+                    step=state.current_step,
+                    data={"tool": name, "arguments": args, "tool_call_id": call_id},
+                )
+            )
 
         results = await self._tool_executor.execute_batch(tool_calls_data)
 
         for exec_result in results:
             if self._is_cancelled():
                 return StepResult(cancelled=True)
-            await self._events.emit(AgentEvent(
-                type=EventType.TOOL_END,
-                step=state.current_step,
-                data={
-                    "tool": exec_result.tool_name,
-                    "tool_call_id": exec_result.tool_call_id,
-                    "success": exec_result.result.success,
-                    "content": exec_result.result.content if exec_result.result.success else None,
-                    "error": exec_result.result.error if not exec_result.result.success else None,
-                    "execution_time": exec_result.execution_time,
-                },
-            ))
+            await self._events.emit(
+                AgentEvent(
+                    type=EventType.TOOL_END,
+                    step=state.current_step,
+                    data={
+                        "tool": exec_result.tool_name,
+                        "tool_call_id": exec_result.tool_call_id,
+                        "success": exec_result.result.success,
+                        "content": exec_result.result.content
+                        if exec_result.result.success
+                        else None,
+                        "error": exec_result.result.error
+                        if not exec_result.result.success
+                        else None,
+                        "execution_time": exec_result.execution_time,
+                    },
+                )
+            )
 
             tool_content = (
                 exec_result.result.content
                 if exec_result.result.success
                 else f"Error: {exec_result.result.error}"
             )
-            state.messages.append(Message(
-                role="tool",
-                content=tool_content,
-                tool_call_id=exec_result.tool_call_id,
-                name=exec_result.tool_name,
-            ))
+            state.messages.append(
+                Message(
+                    role="tool",
+                    content=tool_content,
+                    tool_call_id=exec_result.tool_call_id,
+                    name=exec_result.tool_name,
+                )
+            )
 
             if self._config.on_tool_result:
-                tool_args = tool_calls_data[[r.tool_call_id for r in results].index(exec_result.tool_call_id)][2]
+                tool_args = tool_calls_data[
+                    [r.tool_call_id for r in results].index(exec_result.tool_call_id)
+                ][2]
                 await self._config.on_tool_result(
                     exec_result.tool_call_id,
                     exec_result.tool_name,
@@ -737,11 +783,13 @@ class AgentLoop:
                     tool_content,
                 )
 
-        await self._events.emit(AgentEvent(
-            type=EventType.STEP_END,
-            step=state.current_step,
-            data={"tools_executed": len(results)},
-        ))
+        await self._events.emit(
+            AgentEvent(
+                type=EventType.STEP_END,
+                step=state.current_step,
+                data={"tools_executed": len(results)},
+            )
+        )
 
         ckpt_config = self._config.checkpoint
         if self.checkpoint_enabled and ckpt_config and ckpt_config.save_on_tool_execution:
@@ -752,7 +800,7 @@ class AgentLoop:
     async def _execute_step_stream(
         self,
         state: AgentState,
-        metadata: Optional[dict[str, Any]],
+        metadata: dict[str, Any] | None,
     ) -> AsyncIterator[dict[str, Any]]:
         current_tokens = self._token_manager.estimate_tokens(state.messages)
         state.messages = await self._token_manager.maybe_summarize_messages(state.messages)
@@ -822,7 +870,11 @@ class AgentLoop:
         if not tool_calls_buffer:
             yield {
                 "type": "done",
-                "data": {"message": content_buffer, "steps": state.current_step, "reason": "completed"},
+                "data": {
+                    "message": content_buffer,
+                    "steps": state.current_step,
+                    "reason": "completed",
+                },
             }
             return
 
@@ -867,8 +919,7 @@ class AgentLoop:
             return
 
         tool_calls_data = [
-            (tc.id, tc.function.name, tc.function.arguments)
-            for tc in tool_calls_buffer
+            (tc.id, tc.function.name, tc.function.arguments) for tc in tool_calls_buffer
         ]
         results = await self._tool_executor.execute_batch(tool_calls_data)
 
@@ -893,15 +944,19 @@ class AgentLoop:
                 if exec_result.result.success
                 else f"Error: {exec_result.result.error}"
             )
-            state.messages.append(Message(
-                role="tool",
-                content=tool_content,
-                tool_call_id=exec_result.tool_call_id,
-                name=exec_result.tool_name,
-            ))
+            state.messages.append(
+                Message(
+                    role="tool",
+                    content=tool_content,
+                    tool_call_id=exec_result.tool_call_id,
+                    name=exec_result.tool_name,
+                )
+            )
 
             if self._config.on_tool_result:
-                tool_args = tool_calls_data[[r.tool_call_id for r in results].index(exec_result.tool_call_id)][2]
+                tool_args = tool_calls_data[
+                    [r.tool_call_id for r in results].index(exec_result.tool_call_id)
+                ][2]
                 await self._config.on_tool_result(
                     exec_result.tool_call_id,
                     exec_result.tool_name,
@@ -917,7 +972,7 @@ class AgentLoop:
         self,
         state: AgentState,
         user_response: dict[str, Any],
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         if not state.is_waiting_input or not state.paused_tool_call_id:
             return "Agent is not waiting for user input"
@@ -937,7 +992,7 @@ class AgentLoop:
         self,
         state: AgentState,
         user_response: dict[str, Any],
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         if not state.is_waiting_input or not state.paused_tool_call_id:
             yield {"type": "error", "data": {"message": "Agent is not waiting for user input"}}
@@ -957,9 +1012,9 @@ class AgentLoop:
 
     async def resume_from_checkpoint(
         self,
-        checkpoint_id: Optional[str] = None,
-        thread_id: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        checkpoint_id: str | None = None,
+        thread_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> tuple[AgentState, str]:
         if not self.checkpoint_enabled:
             raise RuntimeError("Checkpoint is not enabled")
@@ -968,14 +1023,16 @@ class AgentLoop:
         assert config is not None
         storage = config.get_storage()
 
-        checkpoint: Optional[Checkpoint] = None
+        checkpoint: Checkpoint | None = None
         if checkpoint_id:
             checkpoint = await storage.load(checkpoint_id)
         elif thread_id:
             checkpoint = await storage.load_latest(thread_id)
 
         if checkpoint is None:
-            raise ValueError(f"Checkpoint not found: checkpoint_id={checkpoint_id}, thread_id={thread_id}")
+            raise ValueError(
+                f"Checkpoint not found: checkpoint_id={checkpoint_id}, thread_id={thread_id}"
+            )
 
         state = AgentState.from_checkpoint(checkpoint, max_steps=self._config.max_steps)
         state.resume_from_checkpoint()
@@ -985,9 +1042,9 @@ class AgentLoop:
 
     async def resume_from_checkpoint_stream(
         self,
-        checkpoint_id: Optional[str] = None,
-        thread_id: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        checkpoint_id: str | None = None,
+        thread_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> tuple[AgentState, AsyncIterator[dict[str, Any]]]:
         if not self.checkpoint_enabled:
             raise RuntimeError("Checkpoint is not enabled")
@@ -996,14 +1053,16 @@ class AgentLoop:
         assert config is not None
         storage = config.get_storage()
 
-        checkpoint: Optional[Checkpoint] = None
+        checkpoint: Checkpoint | None = None
         if checkpoint_id:
             checkpoint = await storage.load(checkpoint_id)
         elif thread_id:
             checkpoint = await storage.load_latest(thread_id)
 
         if checkpoint is None:
-            raise ValueError(f"Checkpoint not found: checkpoint_id={checkpoint_id}, thread_id={thread_id}")
+            raise ValueError(
+                f"Checkpoint not found: checkpoint_id={checkpoint_id}, thread_id={thread_id}"
+            )
 
         state = AgentState.from_checkpoint(checkpoint, max_steps=self._config.max_steps)
         state.resume_from_checkpoint()
@@ -1054,17 +1113,17 @@ class Agent(AgentBase):
     def __init__(
         self,
         # 模型配置（二选一）
-        llm_client: Optional[LLMClient] = None,
+        llm_client: LLMClient | None = None,
         model: str = "openai/gpt-4o",
-        api_key: Optional[str] = None,
-        api_base: Optional[str] = None,
+        api_key: str | None = None,
+        api_base: str | None = None,
         # 工具配置
         tools: list[Tool] | None = None,
-        mcp_config: Optional[str] = None,
-        skills_dir: Optional[str] = None,
+        mcp_config: str | None = None,
+        skills_dir: str | None = None,
         # 系统提示
-        system_prompt: Optional[str] = None,
-        prompt_config: Optional[SystemPromptConfig] = None,
+        system_prompt: str | None = None,
+        prompt_config: SystemPromptConfig | None = None,
         # 运行配置
         name: str | None = None,
         max_steps: int = 50,
@@ -1083,12 +1142,12 @@ class Agent(AgentBase):
         enable_planning: bool = False,
         plan_threshold: int = 3,
         # 会话标识
-        user_id: Optional[str] = None,
-        session_id: Optional[str] = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
         # 运行时控制
-        cancel_event: Optional[asyncio.Event] = None,
+        cancel_event: asyncio.Event | None = None,
         # 向后兼容（已弃用）
-        skill_loader: Optional[SkillLoader] = None,
+        skill_loader: SkillLoader | None = None,
     ) -> None:
         import os
 
@@ -1124,20 +1183,17 @@ class Agent(AgentBase):
 
         # 构建工具列表
         self.tools: dict[str, Tool] = {}
-        self.skill_loader: Optional[SkillLoader] = skill_loader
+        self.skill_loader: SkillLoader | None = skill_loader
         self._init_tools(tools or [])
 
         # 记忆 Hook
-        self._memory_hook: Optional[MemoryHook] = None
+        self._memory_hook: MemoryHook | None = None
         if enable_memory and user_id and session_id:
-            self._memory_hook = create_memory_hook(
-                user_id, session_id, memory_base_dir, self.llm
-            )
+            self._memory_hook = create_memory_hook(user_id, session_id, memory_base_dir, self.llm)
             if self._memory_hook:
                 from omni_agent.tools.memory_tools import DeepRecallMemoryTool
-                deep_recall = DeepRecallMemoryTool(
-                    self._memory_hook.memory, user_id, session_id
-                )
+
+                deep_recall = DeepRecallMemoryTool(self._memory_hook.memory, user_id, session_id)
                 self.tools[deep_recall.name] = deep_recall
 
         self._state = AgentState(max_steps=max_steps)
@@ -1155,7 +1211,7 @@ class Agent(AgentBase):
             parallel_execution=parallel_tools,
         )
 
-        self._ralph_loop: Optional[RalphLoop] = None
+        self._ralph_loop: RalphLoop | None = None
         if ralph:
             ralph_config = ralph if isinstance(ralph, RalphConfig) else RalphConfig(enabled=True)
             self._ralph_loop = RalphLoop(
@@ -1183,7 +1239,7 @@ class Agent(AgentBase):
         if self._memory_hook:
             self._loop.hooks.add(self._memory_hook)
 
-        self.tracer: Optional[LangfuseTracer] = None
+        self.tracer: LangfuseTracer | None = None
         self.execution_logs: list[dict[str, Any]] = []
 
         # 构建系统提示
@@ -1234,8 +1290,8 @@ class Agent(AgentBase):
 
     def _build_system_prompt(
         self,
-        system_prompt: Optional[str],
-        prompt_config: Optional[SystemPromptConfig],
+        system_prompt: str | None,
+        prompt_config: SystemPromptConfig | None,
     ) -> str:
         """构建系统提示"""
         if prompt_config:
@@ -1320,13 +1376,15 @@ class Agent(AgentBase):
         self.execution_logs = []
 
         async def collect_step_start(event: AgentEvent) -> None:
-            self.execution_logs.append({
-                "type": "step",
-                "step": event.step,
-                "max_steps": event.data.get("max_steps", self.max_steps),
-                "tokens": event.data.get("tokens", 0),
-                "token_limit": event.data.get("token_limit", self.token_manager.token_limit),
-            })
+            self.execution_logs.append(
+                {
+                    "type": "step",
+                    "step": event.step,
+                    "max_steps": event.data.get("max_steps", self.max_steps),
+                    "tokens": event.data.get("tokens", 0),
+                    "token_limit": event.data.get("token_limit", self.token_manager.token_limit),
+                }
+            )
             if self.tracer:
                 self.tracer.log_step(
                     step=event.step,
@@ -1336,15 +1394,17 @@ class Agent(AgentBase):
                 )
 
         async def collect_llm_response(event: AgentEvent) -> None:
-            self.execution_logs.append({
-                "type": "llm_response",
-                "thinking": event.data.get("thinking"),
-                "content": event.data.get("content"),
-                "has_tool_calls": event.data.get("has_tool_calls", False),
-                "tool_count": event.data.get("tool_count", 0),
-                "input_tokens": event.data.get("input_tokens", 0),
-                "output_tokens": event.data.get("output_tokens", 0),
-            })
+            self.execution_logs.append(
+                {
+                    "type": "llm_response",
+                    "thinking": event.data.get("thinking"),
+                    "content": event.data.get("content"),
+                    "has_tool_calls": event.data.get("has_tool_calls", False),
+                    "tool_count": event.data.get("tool_count", 0),
+                    "input_tokens": event.data.get("input_tokens", 0),
+                    "output_tokens": event.data.get("output_tokens", 0),
+                }
+            )
             if self.tracer and event.data.get("input_tokens"):
                 self.tracer.log_llm_response(
                     input_tokens=event.data.get("input_tokens", 0),
@@ -1352,44 +1412,52 @@ class Agent(AgentBase):
                 )
 
         async def collect_tool_start(event: AgentEvent) -> None:
-            self.execution_logs.append({
-                "type": "tool_call",
-                "tool": event.data.get("tool"),
-                "arguments": event.data.get("arguments"),
-            })
+            self.execution_logs.append(
+                {
+                    "type": "tool_call",
+                    "tool": event.data.get("tool"),
+                    "arguments": event.data.get("arguments"),
+                }
+            )
 
         async def collect_tool_end(event: AgentEvent) -> None:
             if self.tracer:
                 pass
             else:
-                self.execution_logs.append({
-                    "type": "tool_result",
-                    "tool": event.data.get("tool"),
-                    "success": event.data.get("success"),
-                    "content": event.data.get("content"),
-                    "error": event.data.get("error"),
-                    "execution_time": event.data.get("execution_time"),
-                })
+                self.execution_logs.append(
+                    {
+                        "type": "tool_result",
+                        "tool": event.data.get("tool"),
+                        "success": event.data.get("success"),
+                        "content": event.data.get("content"),
+                        "error": event.data.get("error"),
+                        "execution_time": event.data.get("execution_time"),
+                    }
+                )
 
         async def collect_user_input(event: AgentEvent) -> None:
-            self.execution_logs.append({
-                "type": "user_input_required",
-                "tool_call_id": event.data.get("tool_call_id"),
-                "fields": event.data.get("fields"),
-                "context": event.data.get("context"),
-            })
+            self.execution_logs.append(
+                {
+                    "type": "user_input_required",
+                    "tool_call_id": event.data.get("tool_call_id"),
+                    "fields": event.data.get("fields"),
+                    "context": event.data.get("context"),
+                }
+            )
 
         async def collect_completion(event: AgentEvent) -> None:
-            self.execution_logs.append({
-                "type": "completion",
-                "message": "Task completed successfully",
-                "total_input_tokens": event.data.get("total_input_tokens", 0),
-                "total_output_tokens": event.data.get("total_output_tokens", 0),
-                "total_tokens": (
-                    event.data.get("total_input_tokens", 0) +
-                    event.data.get("total_output_tokens", 0)
-                ),
-            })
+            self.execution_logs.append(
+                {
+                    "type": "completion",
+                    "message": "Task completed successfully",
+                    "total_input_tokens": event.data.get("total_input_tokens", 0),
+                    "total_output_tokens": event.data.get("total_output_tokens", 0),
+                    "total_tokens": (
+                        event.data.get("total_input_tokens", 0)
+                        + event.data.get("total_output_tokens", 0)
+                    ),
+                }
+            )
             if self.tracer:
                 self.tracer.end_trace(
                     success=True,
@@ -1401,18 +1469,22 @@ class Agent(AgentBase):
         async def collect_error(event: AgentEvent) -> None:
             reason = event.data.get("reason", "error")
             if reason == "max_steps_reached":
-                self.execution_logs.append({
-                    "type": "max_steps_reached",
-                    "message": event.data.get("message"),
-                    "total_input_tokens": self._state.total_input_tokens,
-                    "total_output_tokens": self._state.total_output_tokens,
-                    "total_tokens": self._state.total_tokens,
-                })
+                self.execution_logs.append(
+                    {
+                        "type": "max_steps_reached",
+                        "message": event.data.get("message"),
+                        "total_input_tokens": self._state.total_input_tokens,
+                        "total_output_tokens": self._state.total_output_tokens,
+                        "total_tokens": self._state.total_tokens,
+                    }
+                )
             else:
-                self.execution_logs.append({
-                    "type": "error",
-                    "message": event.data.get("message"),
-                })
+                self.execution_logs.append(
+                    {
+                        "type": "error",
+                        "message": event.data.get("message"),
+                    }
+                )
             if self.tracer:
                 self.tracer.end_trace(
                     success=False,
@@ -1449,7 +1521,7 @@ class Agent(AgentBase):
                     break
         self.tracer.start_trace(task)
 
-    async def run(self, task: Optional[str] = None) -> tuple[str, list[dict[str, Any]]]:
+    async def run(self, task: str | None = None) -> tuple[str, list[dict[str, Any]]]:
         await self._load_mcp_tools()
 
         if self._ralph_loop:
@@ -1458,7 +1530,9 @@ class Agent(AgentBase):
             user_msg = self._get_last_user_message()
             if user_msg:
                 return await self._run_ralph_internal(user_msg)
-            raise ValueError("Ralph mode requires a task. Pass task parameter or call add_user_message() first.")
+            raise ValueError(
+                "Ralph mode requires a task. Pass task parameter or call add_user_message() first."
+            )
 
         if self.enable_planning:
             await self._maybe_create_plan()
@@ -1479,23 +1553,36 @@ class Agent(AgentBase):
                 f"\n\n## Current Plan\n{existing.to_markdown()}\n"
                 f"Continue from step {(existing.current_step_index or 0) + 1}."
             )
-            self._state.messages.append(
-                Message(role="system", content=plan_context)
-            )
+            self._state.messages.append(Message(role="system", content=plan_context))
             existing.start()
             existing.save(self.workspace_dir)
-            await self._events.emit(AgentEvent(
-                type=EventType.PLAN_CREATED,
-                data={"plan": existing.to_markdown(), "resumed": True},
-            ))
+            await self._events.emit(
+                AgentEvent(
+                    type=EventType.PLAN_CREATED,
+                    data={"plan": existing.to_markdown(), "resumed": True},
+                )
+            )
             return
 
         user_msg = self._get_last_user_message()
         if not user_msg or len(user_msg) < 50:
             return
 
-        task_indicators = ["\n", "step", "1.", "2.", "first", "then", "finally",
-                          "and", "create", "refactor", "fix", "add", "update"]
+        task_indicators = [
+            "\n",
+            "step",
+            "1.",
+            "2.",
+            "first",
+            "then",
+            "finally",
+            "and",
+            "create",
+            "refactor",
+            "fix",
+            "add",
+            "update",
+        ]
         complexity = sum(1 for ind in task_indicators if ind.lower() in user_msg.lower())
         if complexity < self._plan_threshold:
             return
@@ -1508,18 +1595,23 @@ class Agent(AgentBase):
         try:
             response = await self.llm.generate(
                 messages=[
-                    {"role": "system", "content": "You are a planning assistant. Output only numbered steps."},
+                    {
+                        "role": "system",
+                        "content": "You are a planning assistant. Output only numbered steps.",
+                    },
                     {"role": "user", "content": plan_prompt},
                 ],
                 tools=[],
             )
             steps_text = response.content or ""
             import re
+
             step_lines = re.findall(r"^\d+[\.\)]\s*(.+)$", steps_text, re.MULTILINE)
             if not step_lines:
                 return
 
             from omni_agent.core.planner import PlanStep
+
             plan = Plan(
                 task_summary=user_msg[:100],
                 steps=[PlanStep(description=s.strip()) for s in step_lines],
@@ -1528,14 +1620,16 @@ class Agent(AgentBase):
             )
             plan.save(self.workspace_dir)
 
-            plan_context = f"\n\n## Execution Plan\n{plan.to_markdown()}\nFollow this plan step by step."
-            self._state.messages.append(
-                Message(role="system", content=plan_context)
+            plan_context = (
+                f"\n\n## Execution Plan\n{plan.to_markdown()}\nFollow this plan step by step."
             )
-            await self._events.emit(AgentEvent(
-                type=EventType.PLAN_CREATED,
-                data={"plan": plan.to_markdown(), "resumed": False},
-            ))
+            self._state.messages.append(Message(role="system", content=plan_context))
+            await self._events.emit(
+                AgentEvent(
+                    type=EventType.PLAN_CREATED,
+                    data={"plan": plan.to_markdown(), "resumed": False},
+                )
+            )
         except Exception:
             pass
 
@@ -1551,7 +1645,7 @@ class Agent(AgentBase):
 
         plan.save(self.workspace_dir)
 
-    async def run_stream(self, task: Optional[str] = None) -> AsyncIterator[dict[str, Any]]:
+    async def run_stream(self, task: str | None = None) -> AsyncIterator[dict[str, Any]]:
         # 首次运行时加载 MCP 工具
         await self._load_mcp_tools()
 
@@ -1570,7 +1664,7 @@ class Agent(AgentBase):
         async for event in self._loop.run_stream(self._state, self._get_llm_metadata()):
             yield event
 
-    def _get_last_user_message(self) -> Optional[str]:
+    def _get_last_user_message(self) -> str | None:
         for msg in reversed(self._state.messages):
             if msg.role == "user" and msg.content:
                 if isinstance(msg.content, str):
@@ -1578,7 +1672,7 @@ class Agent(AgentBase):
                 return None
         return None
 
-    def _get_llm_metadata(self) -> Optional[dict[str, Any]]:
+    def _get_llm_metadata(self) -> dict[str, Any] | None:
         if self.tracer:
             return self.tracer.get_litellm_metadata()
         return None
@@ -1587,7 +1681,7 @@ class Agent(AgentBase):
         return self._state.messages.copy()
 
     @property
-    def pending_user_input(self) -> Optional[UserInputRequest]:
+    def pending_user_input(self) -> UserInputRequest | None:
         return self._state.pending_user_input
 
     @property
@@ -1598,13 +1692,13 @@ class Agent(AgentBase):
         if not self._state.pending_user_input:
             raise ValueError("No pending user input request")
 
-        for field in self._state.pending_user_input.fields:
-            if field.field_name in field_values:
-                field.value = field_values[field.field_name]
+        for input_field in self._state.pending_user_input.fields:
+            if input_field.field_name in field_values:
+                input_field.value = field_values[input_field.field_name]
 
         user_input_result = [
-            {"name": field.field_name, "value": field.value}
-            for field in self._state.pending_user_input.fields
+            {"name": input_field.field_name, "value": input_field.value}
+            for input_field in self._state.pending_user_input.fields
         ]
 
         tool_msg = Message(
@@ -1615,31 +1709,37 @@ class Agent(AgentBase):
         )
         self._state.messages.append(tool_msg)
 
-        self.execution_logs.append({
-            "type": "user_input_received",
-            "tool_call_id": self._state.pending_user_input.tool_call_id,
-            "field_values": field_values,
-        })
+        self.execution_logs.append(
+            {
+                "type": "user_input_received",
+                "tool_call_id": self._state.pending_user_input.tool_call_id,
+                "field_values": field_values,
+            }
+        )
 
         self._state.resume_from_input()
 
     async def resume(self) -> tuple[str, list[dict[str, Any]]]:
         if self._state.pending_user_input:
-            raise ValueError("Cannot resume: still waiting for user input. Call provide_user_input first.")
+            raise ValueError(
+                "Cannot resume: still waiting for user input. Call provide_user_input first."
+            )
         return await self.run()
 
     async def resume_stream(self) -> AsyncIterator[dict[str, Any]]:
         if self._state.pending_user_input:
-            raise ValueError("Cannot resume: still waiting for user input. Call provide_user_input first.")
+            raise ValueError(
+                "Cannot resume: still waiting for user input. Call provide_user_input first."
+            )
         async for event in self.run_stream():
             yield event
 
     @property
-    def _pending_user_input(self) -> Optional[UserInputRequest]:
+    def _pending_user_input(self) -> UserInputRequest | None:
         return self._state.pending_user_input
 
     @_pending_user_input.setter
-    def _pending_user_input(self, value: Optional[UserInputRequest]) -> None:
+    def _pending_user_input(self, value: UserInputRequest | None) -> None:
         self._state.pending_user_input = value
 
     @property
@@ -1651,17 +1751,17 @@ class Agent(AgentBase):
         self._state.current_step = value
 
     @property
-    def _paused_tool_call_id(self) -> Optional[str]:
+    def _paused_tool_call_id(self) -> str | None:
         return self._state.paused_tool_call_id
 
     @_paused_tool_call_id.setter
-    def _paused_tool_call_id(self, value: Optional[str]) -> None:
+    def _paused_tool_call_id(self, value: str | None) -> None:
         self._state.paused_tool_call_id = value
 
     def _truncate_tool_output(self, content: str) -> str:
         if len(content) <= self.tool_output_limit:
             return content
-        truncated = content[:self.tool_output_limit]
+        truncated = content[: self.tool_output_limit]
         return f"{truncated}\n\n[... output truncated, {len(content) - self.tool_output_limit} more characters ...]"
 
     async def _handle_ralph_tool_result(
@@ -1682,7 +1782,10 @@ class Agent(AgentBase):
     async def _summarize_for_ralph(self, content: str) -> str:
         response = await self.llm.generate(
             messages=[
-                Message(role="system", content="You are a helpful assistant that creates concise summaries."),
+                Message(
+                    role="system",
+                    content="You are a helpful assistant that creates concise summaries.",
+                ),
                 Message(role="user", content=content),
             ],
             tools=None,
@@ -1690,7 +1793,7 @@ class Agent(AgentBase):
         return response.content or content[:500]
 
     @property
-    def ralph_loop(self) -> Optional[RalphLoop]:
+    def ralph_loop(self) -> RalphLoop | None:
         return self._ralph_loop
 
     @property
@@ -1704,8 +1807,8 @@ class Agent(AgentBase):
         from omni_agent.tools.ralph_tools import (
             GetCachedResultTool,
             GetWorkingMemoryTool,
-            UpdateWorkingMemoryTool,
             SignalCompletionTool,
+            UpdateWorkingMemoryTool,
         )
 
         return [
@@ -1717,7 +1820,7 @@ class Agent(AgentBase):
 
     def _inject_ralph_tools(self) -> None:
         """注入 Ralph 专用工具.
-        
+
         将 get_cached_result、update_working_memory、get_working_memory、
         signal_completion 等工具注入到 Agent 的工具集中。
         """
@@ -1731,17 +1834,17 @@ class Agent(AgentBase):
 
     def _build_ralph_system_prompt(self, base_prompt: str, task: str) -> str:
         """构建 Ralph 模式的系统提示.
-        
+
         在基础系统提示上追加 Ralph 上下文信息，包括:
         - 当前迭代次数
         - 工作记忆内容
         - 完成信号指南
         - 工具使用说明
-        
+
         Args:
             base_prompt: 基础系统提示
             task: 当前任务描述
-            
+
         Returns:
             增强后的系统提示
         """
@@ -1774,13 +1877,13 @@ When you have completed the task, use the `signal_completion` tool or output:
 
     async def _run_ralph_internal(self, task: str) -> tuple[str, list[dict[str, Any]]]:
         """执行 Ralph 迭代循环.
-        
+
         Ralph 模式下，同一任务会反复执行多次迭代，Agent 可以看到之前的工作成果
         并逐步改进，直到检测到完成条件。
-        
+
         Args:
             task: 要执行的任务描述
-            
+
         Returns:
             (最终结果, 执行日志列表)
         """
@@ -1796,11 +1899,16 @@ When you have completed the task, use the `signal_completion` tool or output:
         while not self._ralph_loop.state.completed:
             iteration = self._ralph_loop.start_iteration()
 
-            await self._events.emit(AgentEvent(
-                type=EventType.RALPH_ITERATION_START,
-                step=0,
-                data={"iteration": iteration, "max_iterations": self._ralph_loop.config.max_iterations},
-            ))
+            await self._events.emit(
+                AgentEvent(
+                    type=EventType.RALPH_ITERATION_START,
+                    step=0,
+                    data={
+                        "iteration": iteration,
+                        "max_iterations": self._ralph_loop.config.max_iterations,
+                    },
+                )
+            )
 
             ralph_system_prompt = self._build_ralph_system_prompt(self.system_prompt, task)
             self._state.messages = [
@@ -1813,26 +1921,34 @@ When you have completed the task, use the `signal_completion` tool or output:
 
             completion_check = self._ralph_loop.check_completion(result)
 
-            await self._events.emit(AgentEvent(
-                type=EventType.RALPH_ITERATION_END,
-                step=0,
-                data={
-                    "iteration": iteration,
-                    "completed": completion_check.completed,
-                    "reason": completion_check.reason.value if completion_check.reason else None,
-                },
-            ))
-
-            if completion_check.completed:
-                await self._events.emit(AgentEvent(
-                    type=EventType.RALPH_COMPLETION,
+            await self._events.emit(
+                AgentEvent(
+                    type=EventType.RALPH_ITERATION_END,
                     step=0,
                     data={
                         "iteration": iteration,
-                        "reason": completion_check.reason.value if completion_check.reason else None,
-                        "message": completion_check.message,
+                        "completed": completion_check.completed,
+                        "reason": completion_check.reason.value
+                        if completion_check.reason
+                        else None,
                     },
-                ))
+                )
+            )
+
+            if completion_check.completed:
+                await self._events.emit(
+                    AgentEvent(
+                        type=EventType.RALPH_COMPLETION,
+                        step=0,
+                        data={
+                            "iteration": iteration,
+                            "reason": completion_check.reason.value
+                            if completion_check.reason
+                            else None,
+                            "message": completion_check.message,
+                        },
+                    )
+                )
                 break
 
             messages_content = "\n".join(
@@ -1847,13 +1963,13 @@ When you have completed the task, use the `signal_completion` tool or output:
 
     async def _run_ralph_stream_internal(self, task: str) -> AsyncIterator[dict[str, Any]]:
         """流式执行 Ralph 迭代循环.
-        
+
         与 _run_ralph_internal 相同，但以流式方式输出中间事件，
         包括迭代开始/结束、LLM 响应流和完成信号。
-        
+
         Args:
             task: 要执行的任务描述
-            
+
         Yields:
             事件字典，包含 type 和 data 字段
         """
@@ -1870,7 +1986,10 @@ When you have completed the task, use the `signal_completion` tool or output:
 
             yield {
                 "type": "ralph_iteration_start",
-                "data": {"iteration": iteration, "max_iterations": self._ralph_loop.config.max_iterations},
+                "data": {
+                    "iteration": iteration,
+                    "max_iterations": self._ralph_loop.config.max_iterations,
+                },
             }
 
             ralph_system_prompt = self._build_ralph_system_prompt(self.system_prompt, task)
@@ -1901,7 +2020,9 @@ When you have completed the task, use the `signal_completion` tool or output:
                     "type": "ralph_completion",
                     "data": {
                         "iteration": iteration,
-                        "reason": completion_check.reason.value if completion_check.reason else None,
+                        "reason": completion_check.reason.value
+                        if completion_check.reason
+                        else None,
                         "message": completion_check.message,
                     },
                 }
@@ -1916,7 +2037,7 @@ When you have completed the task, use the `signal_completion` tool or output:
         async for event in self._run_ralph_stream_internal(task):
             yield event
 
-    def get_ralph_status(self) -> Optional[dict[str, Any]]:
+    def get_ralph_status(self) -> dict[str, Any] | None:
         if not self._ralph_loop:
             return None
         return self._ralph_loop.get_status()

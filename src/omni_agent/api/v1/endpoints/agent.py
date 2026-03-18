@@ -1,7 +1,8 @@
 """Agent 执行端点。"""
+
 import json
 import time
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -82,7 +83,7 @@ async def run_agent(
                 success=success,
                 steps=steps,
                 timestamp=time.time(),
-                metadata={}
+                metadata={},
             )
             await session_manager.add_run(request.session_id, run_record)
 
@@ -93,7 +94,11 @@ async def run_agent(
             )
             if not memory.exists():
                 memory.init_memory(context=f"Task: {request.message}")
-            session = await session_manager.get_session(request.session_id, "default") if session_manager else None
+            session = (
+                await session_manager.get_session(request.session_id, "default")
+                if session_manager
+                else None
+            )
             round_num = len(session.runs) if session else 1
             memory.append_round(round_num, request.message, result)
 
@@ -115,13 +120,11 @@ async def run_agent(
                 success=False,
                 steps=0,
                 timestamp=time.time(),
-                metadata={"error": str(e)}
+                metadata={"error": str(e)},
             )
             await session_manager.add_run(request.session_id, run_record)
 
-        raise HTTPException(
-            status_code=500, detail=f"Agent execution failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Agent execution failed: {str(e)}") from e
 
 
 @router.post("/run/stream")

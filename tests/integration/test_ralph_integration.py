@@ -1,12 +1,13 @@
 """Ralph 集成测试 - 使用真实 LLM."""
+
 import asyncio
 import tempfile
 from pathlib import Path
 
-from omni_agent.core import Agent, RalphConfig, LLMClient
+from omni_agent.core import Agent, LLMClient, RalphConfig
 from omni_agent.core.config import Settings
-from omni_agent.tools.file_tools import ReadTool, WriteTool, EditTool
 from omni_agent.tools.bash_tool import BashTool
+from omni_agent.tools.file_tools import EditTool, ReadTool, WriteTool
 
 
 async def test_ralph_complex_task():
@@ -62,14 +63,14 @@ async def test_ralph_complex_task():
 
         status = agent.get_ralph_status()
         if status:
-            print(f"\n--- Ralph Status ---")
+            print("\n--- Ralph Status ---")
             print(f"Iterations: {status['state']['iteration']}")
             print(f"Completed: {status['state']['completed']}")
             print(f"Reason: {status['state']['completion_reason']}")
             print(f"Files modified: {status['memory_summary']['files_modified_count']}")
             print(f"Progress: {status['memory_summary']['recent_progress']}")
 
-        print(f"\n--- Created Files ---")
+        print("\n--- Created Files ---")
         for f in workspace.iterdir():
             if f.is_file():
                 print(f"\n[{f.name}]")

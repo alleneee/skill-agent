@@ -1,4 +1,5 @@
 """RAG 服务，用于知识库操作。"""
+
 from typing import Any, BinaryIO
 
 from omni_agent.core.config import settings
@@ -60,7 +61,7 @@ class RAGService:
         embeddings = await self.embedder.embed_texts(chunk_texts)
 
         # Add embeddings to chunks
-        for chunk, embedding in zip(chunks, embeddings):
+        for chunk, embedding in zip(chunks, embeddings, strict=False):
             chunk["embedding"] = embedding
 
         # Store in database

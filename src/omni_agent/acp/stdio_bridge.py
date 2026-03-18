@@ -12,7 +12,6 @@ import argparse
 import asyncio
 import json
 import sys
-from typing import Optional
 
 import httpx
 
@@ -20,7 +19,7 @@ import httpx
 class ACPStdioBridge:
     def __init__(self, host: str = "localhost", port: int = 8000):
         self.base_url = f"http://{host}:{port}/api/v1/acp"
-        self.client: Optional[httpx.AsyncClient] = None
+        self.client: httpx.AsyncClient | None = None
 
     async def start(self):
         self.client = httpx.AsyncClient(timeout=120.0)

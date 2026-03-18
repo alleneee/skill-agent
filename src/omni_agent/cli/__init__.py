@@ -8,6 +8,7 @@ Usage:
 Example:
     omni-agents --workspace /path/to/project
 """
+
 from omni_agent.cli.commands import AVAILABLE_COMMANDS
 from omni_agent.cli.display import Colors
 from omni_agent.cli.main import main
