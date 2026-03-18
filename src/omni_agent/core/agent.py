@@ -43,6 +43,7 @@ from omni_agent.core.ralph import RalphConfig, RalphLoop
 from omni_agent.core.hooks import AgentHook, HookContext
 from omni_agent.core.memory_hook import MemoryHook, create_memory_hook
 from omni_agent.core.agent_base import AgentBase, AgentStatus
+from omni_agent.core.planner import Plan, PlanStatus
 
 
 class EventType(Enum):
@@ -1078,6 +1079,9 @@ class Agent(AgentBase):
         enable_memory: bool = False,
         memory_base_dir: str = "./.agent_memories",
         ralph: bool | RalphConfig = False,
+        # Plan 配置
+        enable_planning: bool = False,
+        plan_threshold: int = 3,
         # 会话标识
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -1096,6 +1100,8 @@ class Agent(AgentBase):
         self.session_id = session_id
         self.enable_logging = enable_logging
         self.enable_memory = enable_memory
+        self.enable_planning = enable_planning
+        self._plan_threshold = plan_threshold
         self._mcp_config = mcp_config
         self._skills_dir = skills_dir
 
@@ -1444,7 +1450,6 @@ class Agent(AgentBase):
         self.tracer.start_trace(task)
 
     async def run(self, task: Optional[str] = None) -> tuple[str, list[dict[str, Any]]]:
-        # 首次运行时加载 MCP 工具
         await self._load_mcp_tools()
 
         if self._ralph_loop:
@@ -1455,10 +1460,96 @@ class Agent(AgentBase):
                 return await self._run_ralph_internal(user_msg)
             raise ValueError("Ralph mode requires a task. Pass task parameter or call add_user_message() first.")
 
+        if self.enable_planning:
+            await self._maybe_create_plan()
+
         self._setup_tracer()
         self._setup_execution_logging()
         result = await self._loop.run(self._state, self._get_llm_metadata())
+
+        if self.enable_planning:
+            self._update_plan_on_completion(result)
+
         return result, self.execution_logs
+
+    async def _maybe_create_plan(self) -> None:
+        existing = Plan.load(self.workspace_dir)
+        if existing and existing.status in (PlanStatus.IN_PROGRESS, PlanStatus.APPROVED):
+            plan_context = (
+                f"\n\n## Current Plan\n{existing.to_markdown()}\n"
+                f"Continue from step {(existing.current_step_index or 0) + 1}."
+            )
+            self._state.messages.append(
+                Message(role="system", content=plan_context)
+            )
+            existing.start()
+            existing.save(self.workspace_dir)
+            await self._events.emit(AgentEvent(
+                type=EventType.PLAN_CREATED,
+                data={"plan": existing.to_markdown(), "resumed": True},
+            ))
+            return
+
+        user_msg = self._get_last_user_message()
+        if not user_msg or len(user_msg) < 50:
+            return
+
+        task_indicators = ["\n", "step", "1.", "2.", "first", "then", "finally",
+                          "and", "create", "refactor", "fix", "add", "update"]
+        complexity = sum(1 for ind in task_indicators if ind.lower() in user_msg.lower())
+        if complexity < self._plan_threshold:
+            return
+
+        plan_prompt = (
+            f"Analyze this task and create a step-by-step plan. "
+            f"Return ONLY a numbered list of concrete steps (max 7 steps).\n\n"
+            f"Task: {user_msg}"
+        )
+        try:
+            response = await self.llm.generate(
+                messages=[
+                    {"role": "system", "content": "You are a planning assistant. Output only numbered steps."},
+                    {"role": "user", "content": plan_prompt},
+                ],
+                tools=[],
+            )
+            steps_text = response.content or ""
+            import re
+            step_lines = re.findall(r"^\d+[\.\)]\s*(.+)$", steps_text, re.MULTILINE)
+            if not step_lines:
+                return
+
+            from omni_agent.core.planner import PlanStep
+            plan = Plan(
+                task_summary=user_msg[:100],
+                steps=[PlanStep(description=s.strip()) for s in step_lines],
+                done_when=[f"All {len(step_lines)} steps completed"],
+                status=PlanStatus.IN_PROGRESS,
+            )
+            plan.save(self.workspace_dir)
+
+            plan_context = f"\n\n## Execution Plan\n{plan.to_markdown()}\nFollow this plan step by step."
+            self._state.messages.append(
+                Message(role="system", content=plan_context)
+            )
+            await self._events.emit(AgentEvent(
+                type=EventType.PLAN_CREATED,
+                data={"plan": plan.to_markdown(), "resumed": False},
+            ))
+        except Exception:
+            pass
+
+    def _update_plan_on_completion(self, result: str) -> None:
+        plan = Plan.load(self.workspace_dir)
+        if not plan or plan.status == PlanStatus.COMPLETED:
+            return
+
+        for i, step in enumerate(plan.steps):
+            if not step.done:
+                plan.mark_step_done(i)
+                break
+
+        plan.save(self.workspace_dir)
 
     async def run_stream(self, task: Optional[str] = None) -> AsyncIterator[dict[str, Any]]:
         # 首次运行时加载 MCP 工具

@@ -58,4 +58,7 @@ eval-quick: ## Run quick eval (tool_usage only, 30s timeout)
 eval-dry: ## List eval cases without running
 	uv run python -m omni_agent.eval evals/ --dry-run
 
+eval-compare: ## Run eval and compare with previous results
+	uv run python -m omni_agent.eval evals/ --compare eval_results/eval_evals_latest.json
+
 .DEFAULT_GOAL := help

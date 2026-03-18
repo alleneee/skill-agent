@@ -134,3 +134,65 @@ class EvalReport:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+
+    @staticmethod
+    def compare(current_path: Path, previous_path: Path) -> str:
+        with open(current_path) as f:
+            current = json.load(f)
+        with open(previous_path) as f:
+            previous = json.load(f)
+
+        cs = current["summary"]
+        ps = previous["summary"]
+
+        curr_results = {r["case_id"]: r for r in current["results"]}
+        prev_results = {r["case_id"]: r for r in previous["results"]}
+
+        lines = [
+            f"\n{'='*60}",
+            "Eval Comparison",
+            f"{'='*60}",
+            f"  {'Metric':<20s} {'Previous':>12s} {'Current':>12s} {'Delta':>10s}",
+            f"  {'-'*54}",
+        ]
+
+        def _delta(curr_str: str, prev_str: str) -> str:
+            try:
+                cv = float(curr_str.rstrip("s%"))
+                pv = float(prev_str.rstrip("s%"))
+                d = cv - pv
+                sign = "+" if d > 0 else ""
+                return f"{sign}{d:.1f}"
+            except (ValueError, TypeError):
+                return "-"
+
+        for key in ["accuracy", "avg_duration", "avg_steps", "total_tokens"]:
+            lines.append(
+                f"  {key:<20s} {str(ps.get(key, '-')):>12s} "
+                f"{str(cs.get(key, '-')):>12s} {_delta(str(cs.get(key, '0')), str(ps.get(key, '0'))):>10s}"
+            )
+
+        regressions = []
+        improvements = []
+        for case_id, cr in curr_results.items():
+            pr = prev_results.get(case_id)
+            if not pr:
+                continue
+            if pr["passed"] and not cr["passed"]:
+                regressions.append(case_id)
+            elif not pr["passed"] and cr["passed"]:
+                improvements.append(case_id)
+
+        if regressions:
+            lines.append(f"\n  REGRESSIONS ({len(regressions)}):")
+            for r in regressions:
+                lines.append(f"    - {r}")
+        if improvements:
+            lines.append(f"\n  IMPROVEMENTS ({len(improvements)}):")
+            for i in improvements:
+                lines.append(f"    + {i}")
+        if not regressions and not improvements:
+            lines.append("\n  No regressions or improvements detected.")
+
+        lines.append(f"{'='*60}\n")
+        return "\n".join(lines)

@@ -251,6 +251,18 @@ class Settings(BaseSettings):
         description="Token limit for spawned sub-agents"
     )
 
+    # Planning settings
+    ENABLE_PLANNING: bool = Field(
+        default=False,
+        description="Enable automatic plan generation for complex tasks"
+    )
+    PLAN_COMPLEXITY_THRESHOLD: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Minimum complexity score to trigger plan generation"
+    )
+
     # Eval settings
     ENABLE_EVAL: bool = Field(
         default=False,

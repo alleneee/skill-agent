@@ -57,6 +57,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="list cases without running",
     )
+    parser.add_argument(
+        "--compare",
+        type=Path,
+        default=None,
+        help="path to previous eval report JSON for comparison",
+    )
     return parser.parse_args()
 
 
@@ -115,7 +121,6 @@ async def main() -> int:
 
     runner = EvalRunner(
         llm_client=llm_client,
-        tools=[],
         config=config,
     )
 
@@ -124,10 +129,19 @@ async def main() -> int:
     print(report.to_terminal())
 
     import datetime
+
+    from omni_agent.eval.report import EvalReport
+
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     report_path = config.output_dir / f"eval_{dataset.name}_{timestamp}.json"
     report.save_json(report_path)
     print(f"Report saved to {report_path}")
+
+    if args.compare and args.compare.exists():
+        print(EvalReport.compare(report_path, args.compare))
+
+    latest_link = config.output_dir / f"eval_{dataset.name}_latest.json"
+    report.save_json(latest_link)
 
     return 0 if report.failed == 0 else 1
 
