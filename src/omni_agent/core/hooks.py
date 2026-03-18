@@ -35,3 +35,6 @@ class AgentHook(ABC):
 
     async def after_run(self, ctx: HookContext, result: str, success: bool) -> None:
         pass
+
+    async def on_feedback(self, ctx: HookContext, feedback_type: str, data: dict[str, Any]) -> None:
+        pass

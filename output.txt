@@ -1,4 +1,0 @@
-  File "/Users/niko/omni-agent/quicksort.py", line 36
-    print(f"
-          ^
-SyntaxError: unterminated f-string literal (detected at line 36)

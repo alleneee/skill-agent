@@ -1,4 +1,4 @@
-.PHONY: install dev test lint format clean run help
+.PHONY: install dev test lint format clean run help eval eval-quick eval-dry
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -48,5 +48,14 @@ clean: ## Clean up temporary files and caches
 
 verify: ## Verify project setup and configuration
 	uv run python verify_setup.py
+
+eval: ## Run full evaluation suite
+	uv run python -m omni_agent.eval evals/
+
+eval-quick: ## Run quick eval (tool_usage only, 30s timeout)
+	uv run python -m omni_agent.eval evals/tool_usage/ --timeout 30
+
+eval-dry: ## List eval cases without running
+	uv run python -m omni_agent.eval evals/ --dry-run
 
 .DEFAULT_GOAL := help

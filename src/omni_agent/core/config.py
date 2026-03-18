@@ -251,6 +251,28 @@ class Settings(BaseSettings):
         description="Token limit for spawned sub-agents"
     )
 
+    # Eval settings
+    ENABLE_EVAL: bool = Field(
+        default=False,
+        description="Enable evaluation system"
+    )
+    EVAL_LLM_MODEL: str = Field(
+        default="",
+        description="LLM model for LLM-as-Judge grading (uses LLM_MODEL if empty)"
+    )
+    EVAL_PARALLEL: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Max parallel eval cases"
+    )
+    EVAL_DEFAULT_TIMEOUT: int = Field(
+        default=60,
+        ge=10,
+        le=300,
+        description="Default timeout per eval case in seconds"
+    )
+
     # ACP (Agent Client Protocol) settings
     ENABLE_ACP: bool = Field(
         default=True,

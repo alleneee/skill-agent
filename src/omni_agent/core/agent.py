@@ -65,6 +65,8 @@ class EventType(Enum):
     RALPH_ITERATION_START = "ralph_iteration_start"
     RALPH_ITERATION_END = "ralph_iteration_end"
     RALPH_COMPLETION = "ralph_completion"
+    PLAN_CREATED = "plan_created"
+    PLAN_STEP_COMPLETED = "plan_step_completed"
 
 
 @dataclass
@@ -271,6 +273,12 @@ class HookManager:
     async def trigger_after_run(self, ctx: HookContext, result: str, success: bool) -> None:
         for hook in self._hooks:
             await hook.after_run(ctx, result, success)
+
+    async def trigger_on_feedback(
+        self, ctx: HookContext, feedback_type: str, data: dict[str, Any]
+    ) -> None:
+        for hook in self._hooks:
+            await hook.on_feedback(ctx, feedback_type, data)
 
 
 ToolResultCallback = Callable[
@@ -1119,6 +1127,12 @@ class Agent(AgentBase):
             self._memory_hook = create_memory_hook(
                 user_id, session_id, memory_base_dir, self.llm
             )
+            if self._memory_hook:
+                from omni_agent.tools.memory_tools import DeepRecallMemoryTool
+                deep_recall = DeepRecallMemoryTool(
+                    self._memory_hook.memory, user_id, session_id
+                )
+                self.tools[deep_recall.name] = deep_recall
 
         self._state = AgentState(max_steps=max_steps)
         self._events = EventEmitter()

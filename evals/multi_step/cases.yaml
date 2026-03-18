@@ -1,0 +1,80 @@
+- id: "multi_create_module_001"
+  task: |
+    Create a Python module in the workspace:
+    1. Create a file math_utils.py with functions: add(a, b), multiply(a, b), is_even(n)
+    2. Create a file test_math.py that imports math_utils and has test functions for each
+    3. Each function should have proper type hints
+  tags: ["multi_step", "coding"]
+  max_steps: 15
+  timeout: 60
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "math_utils.py"
+      - file_exists: "test_math.py"
+      - file_contains: ["math_utils.py", "def add"]
+      - file_contains: ["math_utils.py", "def multiply"]
+      - file_contains: ["math_utils.py", "def is_even"]
+      - file_contains: ["test_math.py", "import"]
+      - file_contains: ["test_math.py", "def test_"]
+
+- id: "multi_refactor_001"
+  task: |
+    Refactor the code in app.py:
+    1. Extract the repeated validation logic into a separate validate_input function
+    2. Make sure all existing functionality is preserved
+    3. Add type hints to all functions
+  tags: ["multi_step", "refactor"]
+  max_steps: 15
+  timeout: 60
+  setup:
+    files:
+      "app.py": |
+        def process_name(name):
+            if not name or not isinstance(name, str):
+                raise ValueError("Invalid name")
+            if len(name) > 100:
+                raise ValueError("Name too long")
+            return name.strip().title()
+
+        def process_email(email):
+            if not email or not isinstance(email, str):
+                raise ValueError("Invalid email")
+            if len(email) > 100:
+                raise ValueError("Email too long")
+            return email.strip().lower()
+  grading:
+    type: "outcome"
+    checks:
+      - file_contains: ["app.py", "def validate_input"]
+      - file_contains: ["app.py", "def process_name"]
+      - file_contains: ["app.py", "def process_email"]
+      - file_contains: ["app.py", "-> str"]
+
+- id: "multi_debug_001"
+  task: |
+    There is a bug in calculator.py. The divide function doesn't handle division by zero.
+    Fix the bug and add a test file test_calculator.py that covers edge cases including division by zero.
+  tags: ["multi_step", "debug"]
+  max_steps: 15
+  timeout: 60
+  setup:
+    files:
+      "calculator.py": |
+        def add(a: float, b: float) -> float:
+            return a + b
+
+        def subtract(a: float, b: float) -> float:
+            return a - b
+
+        def divide(a: float, b: float) -> float:
+            return a / b
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "test_calculator.py"
+      - file_contains: ["calculator.py", "zero"]
+      - file_contains: ["test_calculator.py", "def test_"]
+      - file_contains: ["test_calculator.py", "divide"]

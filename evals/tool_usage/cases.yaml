@@ -1,0 +1,64 @@
+- id: "tool_read_file_001"
+  task: "Read the file app.py in the workspace and tell me what functions are defined in it."
+  tags: ["tool", "read", "quick"]
+  max_steps: 5
+  timeout: 30
+  setup:
+    files:
+      "app.py": |
+        def hello():
+            return "world"
+
+        def add(a, b):
+            return a + b
+  grading:
+    type: "outcome"
+    checks:
+      - result_contains: "hello"
+      - result_contains: "add"
+
+- id: "tool_write_file_001"
+  task: "Create a file called greeting.py in the workspace with a function greet(name) that returns 'Hello, {name}!'."
+  tags: ["tool", "write", "quick"]
+  max_steps: 5
+  timeout: 30
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "greeting.py"
+      - file_contains: ["greeting.py", "def greet"]
+      - file_contains: ["greeting.py", "Hello"]
+
+- id: "tool_edit_file_001"
+  task: "Edit config.py in the workspace: change DEBUG = False to DEBUG = True."
+  tags: ["tool", "edit", "quick"]
+  max_steps: 5
+  timeout: 30
+  setup:
+    files:
+      "config.py": |
+        APP_NAME = "test"
+        DEBUG = False
+        PORT = 8000
+  grading:
+    type: "outcome"
+    checks:
+      - file_contains: ["config.py", "DEBUG = True"]
+      - file_not_contains: ["config.py", "DEBUG = False"]
+
+- id: "tool_bash_001"
+  task: "Use bash to list all .py files in the workspace directory and report the count."
+  tags: ["tool", "bash", "quick"]
+  max_steps: 5
+  timeout: 30
+  setup:
+    files:
+      "main.py": "print('main')"
+      "utils.py": "print('utils')"
+      "data.txt": "not a python file"
+  grading:
+    type: "outcome"
+    checks:
+      - result_contains: "2"
