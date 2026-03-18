@@ -1447,7 +1447,13 @@ redis = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "httpx" },
+    { name = "mypy" },
     { name = "pgvector" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -1481,7 +1487,15 @@ requires-dist = [
 provides-extras = ["dev", "redis"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pgvector", specifier = ">=0.4.1" }]
+dev = [
+    { name = "httpx", specifier = ">=0.26.0" },
+    { name = "mypy", specifier = ">=1.8.0" },
+    { name = "pgvector", specifier = ">=0.4.1" },
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23.0" },
+    { name = "pytest-cov", specifier = ">=4.1.0" },
+    { name = "ruff", specifier = ">=0.2.0" },
+]
 
 [[package]]
 name = "openai"
