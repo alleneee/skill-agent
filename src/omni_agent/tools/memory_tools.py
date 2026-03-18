@@ -1,104 +1,43 @@
-"""Memory Tools - 让 Agent 自主管理不同类型的记忆
+"""Memory Tools - 深度记忆检索工具
 
-提供工具让 Agent 在执行过程中：
-- 存储语义记忆（长期知识、用户偏好）
-- 存储工作记忆（待办、进度、决策、错误）
-- 更新任务状态
-- 查询历史记忆
-- 记录重要决策
+Agent 通过 file tools + memory-management skill 直接操作 .md 文件，
+此模块仅保留 DeepRecallMemoryTool 用于语义/关键词混合搜索。
 """
 
+import logging
 from typing import Any
 
-from omni_agent.core.memory import Memory, MemoryType
+from omni_agent.core.memory import Memory
 from omni_agent.tools.base import Tool, ToolResult
 
+logger = logging.getLogger(__name__)
 
-class StoreSemanticMemoryTool(Tool):
-    """存储语义记忆 - 长期知识和事实"""
 
-    def __init__(self, memory: Memory):
-        self._memory = memory
+class DeepRecallMemoryTool(Tool):
+    """深度记忆检索 - 通过语义搜索和关键词搜索获取记忆内容"""
 
-    @property
-    def name(self) -> str:
-        return "store_semantic_memory"
-
-    @property
-    def description(self) -> str:
-        return (
-            "存储长期有效的知识或事实到语义记忆。"
-            "适用于：用户偏好、项目信息、技术栈、重要发现等。"
-            "这些信息会跨会话保留，用于建立长期上下文。"
-        )
-
-    @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string",
-                    "description": "要记忆的知识或事实，简洁明确",
-                },
-                "source": {
-                    "type": "string",
-                    "description": "信息来源：user_stated（用户明确说的）、inferred（推断的）、codebase（代码分析）、conversation（对话中发现）",
-                    "enum": ["user_stated", "inferred", "codebase", "conversation"],
-                },
-                "importance": {
-                    "type": "number",
-                    "description": "重要性 0-1，默认 0.5。用户明确偏好应该更高。",
-                    "minimum": 0,
-                    "maximum": 1,
-                },
-            },
-            "required": ["content", "source"],
-        }
-
-    async def execute(
+    def __init__(
         self,
-        content: str,
-        source: str,
-        importance: float = 0.5,
-    ) -> ToolResult:
-        try:
-            entry_id = self._memory.add_profile(
-                content=content,
-                source=source,
-                importance=importance,
-            )
-            return ToolResult(
-                success=True,
-                content=f"已存储语义记忆 [{entry_id}]: {content}",
-            )
-        except Exception as e:
-            return ToolResult(
-                success=False,
-                content="",
-                error=f"存储语义记忆失败: {e}",
-            )
-
-
-class StoreWorkingMemoryTool(Tool):
-    """存储工作记忆 - 当前任务相关信息"""
-
-    def __init__(self, memory: Memory):
+        memory: Memory,
+        user_id: str,
+        session_id: str,
+    ):
         self._memory = memory
+        self._user_id = user_id
+        self._session_id = session_id
+        self._embedding_service: Any = None
+        self._vector_store: Any = None
 
     @property
     def name(self) -> str:
-        return "store_working_memory"
+        return "deep_recall_memory"
 
     @property
     def description(self) -> str:
         return (
-            "存储当前任务相关的工作记忆。"
-            "category 类型：\n"
-            "- todo: 待办事项，需要完成的任务\n"
-            "- progress: 进度记录，已完成的步骤\n"
-            "- finding: 发现/洞察，执行过程中的发现\n"
-            "- error: 错误记录，遇到的问题"
+            "深度检索用户记忆内容。"
+            "搜索 profile(用户画像)、habit(用户习惯)、context(会话上下文) 三个维度。"
+            "支持语义搜索和关键词搜索。"
         )
 
     @property
@@ -106,224 +45,95 @@ class StoreWorkingMemoryTool(Tool):
         return {
             "type": "object",
             "properties": {
-                "content": {
+                "query": {
                     "type": "string",
-                    "description": "记忆内容",
+                    "description": "搜索查询文本",
                 },
-                "category": {
-                    "type": "string",
-                    "description": "记忆分类",
-                    "enum": ["todo", "progress", "finding", "error"],
-                },
-            },
-            "required": ["content", "category"],
-        }
-
-    async def execute(
-        self,
-        content: str,
-        category: str,
-    ) -> ToolResult:
-        try:
-            status = "pending" if category == "todo" else "active"
-            entry_id = self._memory.add_task(
-                content=content,
-                category=category,
-                status=status,
-            )
-            return ToolResult(
-                success=True,
-                content=f"已存储工作记忆 [{category}]: {content} (id: {entry_id})",
-            )
-        except Exception as e:
-            return ToolResult(
-                success=False,
-                content="",
-                error=f"存储工作记忆失败: {e}",
-            )
-
-
-class UpdateTaskStatusTool(Tool):
-    """更新任务状态"""
-
-    def __init__(self, memory: Memory):
-        self._memory = memory
-
-    @property
-    def name(self) -> str:
-        return "update_task_status"
-
-    @property
-    def description(self) -> str:
-        return (
-            "更新工作记忆中任务的状态。"
-            "通常用于将 todo 标记为 completed。"
-            "需要提供任务的 entry_id。"
-        )
-
-    @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "entry_id": {
-                    "type": "string",
-                    "description": "任务的 entry_id（从 store_working_memory 返回）",
-                },
-                "status": {
-                    "type": "string",
-                    "description": "新状态",
-                    "enum": ["pending", "active", "completed", "cancelled"],
-                },
-            },
-            "required": ["entry_id", "status"],
-        }
-
-    async def execute(self, entry_id: str, status: str) -> ToolResult:
-        try:
-            success = self._memory.update_working_status(entry_id, status)
-            if success:
-                return ToolResult(
-                    success=True,
-                    content=f"已更新任务 [{entry_id}] 状态为: {status}",
-                )
-            else:
-                return ToolResult(
-                    success=False,
-                    content="",
-                    error=f"未找到任务: {entry_id}",
-                )
-        except Exception as e:
-            return ToolResult(
-                success=False,
-                content="",
-                error=f"更新任务状态失败: {e}",
-            )
-
-
-class RecordDecisionTool(Tool):
-    """记录重要决策"""
-
-    def __init__(self, memory: Memory):
-        self._memory = memory
-
-    @property
-    def name(self) -> str:
-        return "record_decision"
-
-    @property
-    def description(self) -> str:
-        return (
-            "记录重要的技术决策或选择。"
-            "包括决策内容和做出该决策的理由。"
-            "用于追溯为什么采取了某种方案。"
-        )
-
-    @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "decision": {
-                    "type": "string",
-                    "description": "决策内容，例如：选择使用 Redis 作为缓存",
-                },
-                "reason": {
-                    "type": "string",
-                    "description": "决策理由，例如：项目已有 Redis 依赖，且性能需求高",
-                },
-            },
-            "required": ["decision", "reason"],
-        }
-
-    async def execute(self, decision: str, reason: str) -> ToolResult:
-        try:
-            self._memory.add_decision(decision=decision, reason=reason)
-            return ToolResult(
-                success=True,
-                content=f"已记录决策: {decision}\n理由: {reason}",
-            )
-        except Exception as e:
-            return ToolResult(
-                success=False,
-                content="",
-                error=f"记录决策失败: {e}",
-            )
-
-
-class RecallMemoryTool(Tool):
-    """查询记忆"""
-
-    def __init__(self, memory: Memory):
-        self._memory = memory
-
-    @property
-    def name(self) -> str:
-        return "recall_memory"
-
-    @property
-    def description(self) -> str:
-        return (
-            "查询历史记忆。可以按类型筛选。"
-            "返回最近的相关记忆条目。"
-        )
-
-    @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
                 "memory_type": {
                     "type": "string",
-                    "description": "记忆类型筛选（可选）",
-                    "enum": ["episodic", "semantic", "working", "all"],
+                    "description": "按类型过滤",
+                    "enum": ["profile", "habit", "context"],
+                },
+                "mode": {
+                    "type": "string",
+                    "description": "搜索模式: semantic(语义), keyword(关键词), hybrid(混合，默认)",
+                    "enum": ["semantic", "keyword", "hybrid"],
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "返回条目数量上限，默认 10",
+                    "description": "返回结果数量上限，默认 5",
                     "minimum": 1,
-                    "maximum": 50,
+                    "maximum": 20,
                 },
             },
+            "required": ["query"],
         }
+
+    def _get_embedding_service(self) -> Any:
+        if self._embedding_service is None:
+            try:
+                from omni_agent.rag.embedding_service import embedding_service
+                self._embedding_service = embedding_service
+            except Exception:
+                pass
+        return self._embedding_service
+
+    def _get_vector_store(self) -> Any:
+        if self._vector_store is None:
+            try:
+                from omni_agent.core.memory_vector import MemoryVectorStore
+                self._vector_store = MemoryVectorStore(self._user_id, self._session_id)
+            except Exception:
+                pass
+        return self._vector_store
 
     async def execute(
         self,
-        memory_type: str = "all",
-        limit: int = 10,
+        query: str = "",
+        memory_type: str = "",
+        mode: str = "hybrid",
+        limit: int = 5,
     ) -> ToolResult:
         try:
-            if memory_type == "all":
-                memories = self._memory.get_memories(limit=limit)
-            else:
-                mem_type = MemoryType(memory_type)
-                memories = self._memory.get_memories(memory_type=mem_type, limit=limit)
-
-            if not memories:
+            if not query:
                 return ToolResult(
-                    success=True,
-                    content="没有找到相关记忆。",
+                    success=False,
+                    content="",
+                    error="请提供 query 参数",
                 )
 
-            lines = [f"找到 {len(memories)} 条记忆:\n"]
-            for i, mem in enumerate(memories, 1):
+            keyword_results = self._keyword_search(query, memory_type, limit)
+
+            semantic_results: list[dict] = []
+            if mode in ("semantic", "hybrid"):
+                semantic_results = await self._semantic_search(
+                    query, memory_type, limit
+                )
+
+            if mode == "semantic":
+                results = semantic_results
+            elif mode == "keyword":
+                results = keyword_results
+            else:
+                results = self._merge_results(
+                    semantic_results, keyword_results, limit
+                )
+
+            if not results:
+                return ToolResult(
+                    success=True,
+                    content=f"没有找到与 '{query}' 相关的记忆。",
+                )
+
+            lines = [f"找到 {len(results)} 条相关记忆:\n"]
+            for i, mem in enumerate(results, 1):
+                sim = mem.get("similarity")
+                sim_str = f" (相似度: {sim:.2f})" if sim is not None else ""
                 mem_type_str = mem.get("type", "unknown")
                 content = mem.get("content", "")
-                metadata = mem.get("metadata", {})
-
-                if mem_type_str == "episodic":
-                    role = metadata.get("role", "")
-                    round_num = metadata.get("round", "?")
-                    lines.append(f"{i}. [对话 R{round_num}/{role}] {content[:100]}")
-                elif mem_type_str == "semantic":
-                    source = metadata.get("source", "")
-                    lines.append(f"{i}. [知识/{source}] {content}")
-                elif mem_type_str == "working":
-                    category = metadata.get("category", "")
-                    status = metadata.get("status", "")
-                    lines.append(f"{i}. [{category}/{status}] {content}")
-                else:
-                    lines.append(f"{i}. [{mem_type_str}] {content}")
+                lines.append(
+                    f"{i}. [{mem_type_str}]{sim_str}\n   {content}"
+                )
 
             return ToolResult(
                 success=True,
@@ -333,81 +143,126 @@ class RecallMemoryTool(Tool):
             return ToolResult(
                 success=False,
                 content="",
-                error=f"查询记忆失败: {e}",
+                error=f"深度检索记忆失败: {e}",
             )
 
+    def _keyword_search(
+        self, query: str, memory_type: str, limit: int
+    ) -> list[dict]:
+        sources: dict[str, str] = {}
+        if not memory_type or memory_type == "profile":
+            sources["profile"] = self._memory.read_profile()
+        if not memory_type or memory_type == "habit":
+            sources["habit"] = self._memory.read_habit()
+        if not memory_type or memory_type == "context":
+            sources["context"] = self._memory.read_context()
 
-class GetMemorySummaryTool(Tool):
-    """获取记忆摘要"""
+        query_lower = query.lower()
+        scored: list[tuple[float, dict]] = []
 
-    def __init__(self, memory: Memory):
-        self._memory = memory
+        for src_type, content in sources.items():
+            if not content:
+                continue
+            paragraphs = self._split_paragraphs(content)
+            for para in paragraphs:
+                if query_lower in para.lower():
+                    score = 1.0 if query_lower in para.lower().split("\n")[0] else 0.8
+                    scored.append((score, {
+                        "type": src_type,
+                        "content": para.strip(),
+                        "similarity": score,
+                    }))
 
-    @property
-    def name(self) -> str:
-        return "get_memory_summary"
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [item[1] for item in scored[:limit]]
 
-    @property
-    def description(self) -> str:
-        return (
-            "获取当前记忆系统的摘要。"
-            "包括核心事实、待办任务、最近决策等。"
-            "用于快速了解当前上下文。"
-        )
+    def _split_paragraphs(self, content: str) -> list[str]:
+        """按段落切分 .md 内容，以 markdown 标题或列表项为分界"""
+        lines = content.split("\n")
+        paragraphs: list[str] = []
+        current: list[str] = []
 
-    @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {},
-        }
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                if current:
+                    paragraphs.append("\n".join(current))
+                    current = []
+                continue
+            if (stripped.startswith("# ") or stripped.startswith("## ")) and current:
+                paragraphs.append("\n".join(current))
+                current = []
+            current.append(line)
 
-    async def execute(self) -> ToolResult:
+        if current:
+            paragraphs.append("\n".join(current))
+
+        return paragraphs
+
+    async def _semantic_search(
+        self, query: str, memory_type: str, limit: int
+    ) -> list[dict]:
+        embedding_service = self._get_embedding_service()
+        vector_store = self._get_vector_store()
+
+        if not embedding_service or not vector_store:
+            return []
+
         try:
-            lines = ["=== 记忆摘要 ===\n"]
-
-            lines.append(f"任务: {self._memory.context.task or '未设置'}")
-            lines.append(f"总记忆数: {self._memory.total_count}")
-            lines.append(f"对话轮数: {self._memory.session_count // 2}\n")
-
-            if self._memory.summary.core_facts:
-                lines.append("核心事实:")
-                for fact in self._memory.summary.core_facts:
-                    lines.append(f"  - {fact}")
-                lines.append("")
-
-            pending = self._memory.get_pending_tasks()
-            if pending:
-                lines.append("待办任务:")
-                for task in pending:
-                    lines.append(f"  - [{task.get('id', '?')}] {task.get('content', '')}")
-                lines.append("")
-
-            if self._memory.summary.decisions:
-                lines.append("最近决策:")
-                for dec in self._memory.summary.decisions[-3:]:
-                    lines.append(f"  - {dec.get('decision', '')}")
-                lines.append("")
-
-            return ToolResult(
-                success=True,
-                content="\n".join(lines),
+            embedding = await embedding_service.embed_text(query)
+            results = await vector_store.search(
+                embedding=embedding,
+                memory_type=memory_type or None,
+                threshold=0.5,
+                top_k=limit,
             )
+
+            return [
+                {
+                    "type": mem_type,
+                    "similarity": similarity,
+                    "content": content,
+                }
+                for _, mem_type, similarity, content in results
+            ]
         except Exception as e:
-            return ToolResult(
-                success=False,
-                content="",
-                error=f"获取记忆摘要失败: {e}",
-            )
+            logger.warning(f"语义搜索失败: {e}")
+            return []
+
+    def _merge_results(
+        self,
+        semantic: list[dict],
+        keyword: list[dict],
+        limit: int,
+    ) -> list[dict]:
+        seen_content: set[str] = set()
+        merged: list[tuple[float, dict]] = []
+
+        for mem in semantic:
+            content_key = mem.get("content", "")[:80]
+            sim = mem.get("similarity", 0.0)
+            merged.append((sim, mem))
+            seen_content.add(content_key)
+
+        for mem in keyword:
+            content_key = mem.get("content", "")[:80]
+            if content_key in seen_content:
+                continue
+            kw_score = mem.get("similarity", 0.0) * 0.7
+            merged.append((kw_score, mem))
+            seen_content.add(content_key)
+
+        merged.sort(key=lambda x: x[0], reverse=True)
+        return [item[1] for item in merged[:limit]]
 
 
-def create_memory_tools(memory: Memory) -> list[Tool]:
-    """创建所有记忆工具实例"""
-    return [
-        StoreSemanticMemoryTool(memory),
-        StoreWorkingMemoryTool(memory),
-        UpdateTaskStatusTool(memory),
-        RecordDecisionTool(memory),
-        RecallMemoryTool(memory),
-        GetMemorySummaryTool(memory),
-    ]
+def create_memory_tools(
+    memory: Memory,
+    user_id: str = "",
+    session_id: str = "",
+) -> list[Tool]:
+    """创建记忆工具实例"""
+    tools: list[Tool] = []
+    if user_id and session_id:
+        tools.append(DeepRecallMemoryTool(memory, user_id, session_id))
+    return tools

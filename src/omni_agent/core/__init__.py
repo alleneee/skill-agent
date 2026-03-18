@@ -1,8 +1,4 @@
 """Omni Agent 的核心模块。"""
-from .agent_base import (
-    AgentBase,
-    AgentStatus,
-)
 from .agent import (
     Agent,
     AgentEvent,
@@ -13,7 +9,10 @@ from .agent import (
     HookManager,
     LoopConfig,
 )
-from .hooks import AgentHook, HookContext
+from .agent_base import (
+    AgentBase,
+    AgentStatus,
+)
 from .agent_node import AgentNode, ToolNode, create_router
 from .checkpoint import (
     Checkpoint,
@@ -33,8 +32,9 @@ from .graph import (
     Node,
     StateGraph,
 )
+from .hooks import AgentHook, HookContext
 from .llm_client import LLMClient
-from .memory import Memory, MemoryEntry, MemoryManager, MemoryType
+from .memory import Memory, MemoryManager
 from .memory_hook import MemoryHook, create_memory_hook
 from .ralph import (
     CompletionCondition,
@@ -72,8 +72,6 @@ __all__ = [
     "FileCheckpointStorage",
     "Memory",
     "MemoryManager",
-    "MemoryEntry",
-    "MemoryType",
     "MemoryHook",
     "create_memory_hook",
     "GraphBuilder",

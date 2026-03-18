@@ -1,7 +1,10 @@
-"""向量化记忆存储，使用 PostgreSQL + pgvector。"""
+"""向量化记忆存储，使用 PostgreSQL + pgvector。
+
+profile/habit 类型的向量 session_id 统一存储为 "__user__"（用户级别），
+context 类型按实际 session_id 存储。
+"""
 
 import logging
-from typing import Optional
 
 import asyncpg
 from pgvector.asyncpg import register_vector
@@ -10,6 +13,9 @@ from omni_agent.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+USER_LEVEL_SESSION = "__user__"
+USER_LEVEL_TYPES = {"profile", "habit"}
+
 
 class MemoryVectorStore:
     """PostgreSQL 向量记忆存储。
@@ -17,10 +23,10 @@ class MemoryVectorStore:
     表结构：
     - id: UUID
     - user_id: 用户ID
-    - session_id: 会话ID
-    - memory_id: 记忆ID（对应 memory.json 中的 id）
+    - session_id: 会话ID（profile/habit 统一为 __user__）
+    - memory_id: 记忆ID
     - content: 记忆内容
-    - memory_type: 类型（profile/task/habit）
+    - memory_type: 类型（profile/habit/context）
     - embedding: 向量
     - created_at: 创建时间
     """
@@ -30,7 +36,7 @@ class MemoryVectorStore:
     def __init__(self, user_id: str, session_id: str) -> None:
         self._user_id = user_id
         self._session_id = session_id
-        self._pool: Optional[asyncpg.Pool] = None
+        self._pool: asyncpg.Pool | None = None
         self._initialized = False
 
     async def _get_pool(self) -> asyncpg.Pool:
@@ -87,6 +93,12 @@ class MemoryVectorStore:
 
         self._initialized = True
 
+    def _resolve_session_id(self, memory_type: str) -> str:
+        """profile/habit 使用用户级 session_id，其他使用实际 session_id"""
+        if memory_type in USER_LEVEL_TYPES:
+            return USER_LEVEL_SESSION
+        return self._session_id
+
     async def add(
         self,
         memory_id: str,
@@ -97,6 +109,7 @@ class MemoryVectorStore:
         """添加向量记忆。"""
         await self.initialize()
         pool = await self._get_pool()
+        session_id = self._resolve_session_id(memory_type)
 
         async with pool.acquire() as conn:
             await conn.execute(
@@ -108,7 +121,7 @@ class MemoryVectorStore:
                 DO UPDATE SET content = $4, embedding = $6, created_at = NOW()
                 """,
                 self._user_id,
-                self._session_id,
+                session_id,
                 memory_id,
                 content,
                 memory_type,
@@ -145,6 +158,7 @@ class MemoryVectorStore:
         """
         await self.initialize()
         pool = await self._get_pool()
+        session_id = self._resolve_session_id(memory_type)
 
         async with pool.acquire() as conn:
             rows = await conn.fetch(
@@ -163,7 +177,7 @@ class MemoryVectorStore:
                 """,
                 embedding,
                 self._user_id,
-                self._session_id,
+                session_id,
                 memory_type,
                 threshold,
                 top_k,
@@ -171,6 +185,83 @@ class MemoryVectorStore:
 
             return [
                 (row["memory_id"], float(row["similarity"]), row["content"])
+                for row in rows
+            ]
+
+    async def search(
+        self,
+        embedding: list[float],
+        memory_type: str | None = None,
+        threshold: float = 0.6,
+        top_k: int = 5,
+    ) -> list[tuple[str, str, float, str]]:
+        """语义搜索记忆，支持可选的类型过滤。
+
+        profile/habit 按 user_id 查询（session_id=__user__），
+        context 按 user_id+session_id 查询，
+        无类型过滤时同时查两者。
+
+        Returns:
+            [(memory_id, memory_type, similarity, content), ...]
+        """
+        await self.initialize()
+        pool = await self._get_pool()
+
+        async with pool.acquire() as conn:
+            if memory_type:
+                session_id = self._resolve_session_id(memory_type)
+                rows = await conn.fetch(
+                    f"""
+                    SELECT
+                        memory_id,
+                        memory_type,
+                        content,
+                        1 - (embedding <=> $1::vector) as similarity
+                    FROM {self.TABLE_NAME}
+                    WHERE user_id = $2
+                      AND session_id = $3
+                      AND memory_type = $4
+                      AND 1 - (embedding <=> $1::vector) >= $5
+                    ORDER BY embedding <=> $1::vector
+                    LIMIT $6
+                    """,
+                    embedding,
+                    self._user_id,
+                    session_id,
+                    memory_type,
+                    threshold,
+                    top_k,
+                )
+            else:
+                rows = await conn.fetch(
+                    f"""
+                    SELECT
+                        memory_id,
+                        memory_type,
+                        content,
+                        1 - (embedding <=> $1::vector) as similarity
+                    FROM {self.TABLE_NAME}
+                    WHERE user_id = $2
+                      AND session_id IN ($3, $4)
+                      AND 1 - (embedding <=> $1::vector) >= $5
+                    ORDER BY embedding <=> $1::vector
+                    LIMIT $6
+                    """,
+                    embedding,
+                    self._user_id,
+                    self._session_id,
+                    USER_LEVEL_SESSION,
+                    threshold,
+                    top_k,
+                )
+
+            return [
+                (
+                    row["memory_id"],
+                    row["memory_type"],
+                    float(row["similarity"]),
+                    row["content"],
+                )
                 for row in rows
             ]
 
@@ -207,7 +298,7 @@ class MemoryVectorStore:
                 self._session_id,
             )
 
-    async def count(self, memory_type: Optional[str] = None) -> int:
+    async def count(self, memory_type: str | None = None) -> int:
         """统计向量数量。"""
         await self.initialize()
         pool = await self._get_pool()

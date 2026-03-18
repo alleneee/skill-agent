@@ -19,7 +19,7 @@ TOOL_GROUP_MAPPING: dict[ToolGroup, List[str]] = {
     ToolGroup.FILE_OPS: ["read_file", "write_file", "edit_file", "list_dir"],
     ToolGroup.CODE_TOOLS: ["glob", "grep", "bash"],
     ToolGroup.SEARCH_TOOLS: ["search_knowledge", "web_search_exa"],
-    ToolGroup.MEMORY_TOOLS: ["session_note", "recall_note"],
+    ToolGroup.MEMORY_TOOLS: ["session_note", "recall_note", "deep_recall_memory"],
     ToolGroup.MAPS_TOOLS: [
         "maps_direction",
         "maps_search_nearby",

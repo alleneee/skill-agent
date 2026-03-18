@@ -8,19 +8,27 @@
       "Bash(git commit -m \"$(cat <<''EOF''\nfeat: add skill+spawn_agent delegation strategy in system prompt\n\n- Add sub-task delegation strategy guiding agent to:\n  1. Load relevant skill via get_skill before spawning\n  2. Pass skill content as context to spawn_agent\n- Enables specialized knowledge transfer to sub-agents\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(git push)",
       "Bash(source ~/.zshrc)",
-      "Bash(zsh -c 'source ~/.zshrc && type claude && which claude')"
+      "Bash(zsh -c 'source ~/.zshrc && type claude && which claude')",
+      "mcp__serena__find_symbol"
+    ],
+    "additionalDirectories": [
+      "/Users/niko/agentscope"
     ]
   },
   "enabledMcpjsonServers": [
     "zen",
-    "context7"
+    "context7",
+    "puppeteer",
+    "magic"
   ],
   "disabledMcpjsonServers": [
     "puppeteer",
     "magic"
   ],
+  "outputStyle": "Coding Vibes",
   "sandbox": {
     "enabled": false,
     "autoAllowBashIfSandboxed": false
-  }
+  },
+  "enableAllProjectMcpServers": true
 }

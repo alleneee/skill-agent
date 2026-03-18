@@ -52,7 +52,7 @@ read_only: false
 #  * `find_referencing_code_snippets`: Finds code snippets in which the symbol at the given location is referenced.
 #  * `find_referencing_symbols`: Finds symbols that reference the symbol at the given location (optionally filtered by type).
 #  * `find_symbol`: Performs a global (or local) search for symbols with/containing a given name/substring (optionally filtered by type).
-#  * `get_current_config`: Prints the current configuration of the agent, including the active and available projects, tools, contexts, and modes.
+#  * `get_current_config`: Prints the current configuration of the agents, including the active and available projects, tools, contexts, and modes.
 #  * `get_symbols_overview`: Gets an overview of the top-level symbols defined in a given file.
 #  * `initial_instructions`: Gets the initial instructions for the current project.
 #     Should only be used in settings where the system prompt cannot be set,
@@ -74,7 +74,7 @@ read_only: false
 #  * `summarize_changes`: Provides instructions for summarizing the changes made to the codebase.
 #  * `switch_modes`: Activates modes by providing a list of their names
 #  * `think_about_collected_information`: Thinking tool for pondering the completeness of collected information.
-#  * `think_about_task_adherence`: Thinking tool for determining whether the agent is still on track with the current task.
+#  * `think_about_task_adherence`: Thinking tool for determining whether the agents is still on track with the current task.
 #  * `think_about_whether_you_are_done`: Thinking tool for determining whether the task is truly completed.
 #  * `write_memory`: Writes a named memory (for future reference) to Serena's project-specific memory store.
 excluded_tools: []
@@ -82,6 +82,49 @@ excluded_tools: []
 # initial prompt for the project. It will always be given to the LLM upon activating the project
 # (contrary to the memories, which are loaded on demand).
 initial_prompt: ""
+# the name by which the project can be referenced within Serena
+project_name: "skill-agents"
 
-project_name: "skill-agent"
+# list of tools to include that would otherwise be disabled (particularly optional tools that are disabled by default)
 included_optional_tools: []
+
+# list of mode names to that are always to be included in the set of active modes
+# The full set of modes to be activated is base_modes + default_modes.
+# If the setting is undefined, the base_modes from the global configuration (serena_config.yml) apply.
+# Otherwise, this setting overrides the global configuration.
+# Set this to [] to disable base modes for this project.
+# Set this to a list of mode names to always include the respective modes for this project.
+base_modes:
+
+# list of mode names that are to be activated by default.
+# The full set of modes to be activated is base_modes + default_modes.
+# If the setting is undefined, the default_modes from the global configuration (serena_config.yml) apply.
+# Otherwise, this overrides the setting from the global configuration (serena_config.yml).
+# This setting can, in turn, be overridden by CLI parameters (--mode).
+default_modes:
+
+# fixed set of tools to use as the base tool set (if non-empty), replacing Serena's default set of tools.
+# This cannot be combined with non-empty excluded_tools or included_optional_tools.
+fixed_tools: []
+
+# time budget (seconds) per tool call for the retrieval of additional symbol information
+# such as docstrings or parameter information.
+# This overrides the corresponding setting in the global configuration; see the documentation there.
+# If null or missing, use the setting from the global configuration.
+symbol_info_budget:
+
+# The language backend to use for this project.
+# If not set, the global setting from serena_config.yml is used.
+# Valid values: LSP, JetBrains
+# Note: the backend is fixed at startup. If a project with a different backend
+# is activated post-init, an error will be returned.
+language_backend:
+
+# list of regex patterns which, when matched, mark a memory entry as read‑only.
+# Extends the list from the global configuration, merging the two lists.
+read_only_memory_patterns: []
+
+# line ending convention to use when writing source files.
+# Possible values: unset (use global setting), "lf", "crlf", or "native" (platform default)
+# This does not affect Serena's own files (e.g. memories and configuration files), which always use native line endings.
+line_ending:

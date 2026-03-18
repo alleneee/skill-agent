@@ -1001,66 +1001,87 @@ SESSION_MAX_RUNS_PER_SESSION=100
 SESSION_HISTORY_RUNS=3
 ```
 
-### 文件记忆系统 (AGENTS.md)
+### 记忆系统
 
-参考 [AGENTS.md 协议](https://agents.md/)，提供基于文件的记忆管理：
+基于 Markdown 文件的记忆存储，按类型分离，profile/habit 提升到用户级别（跨会话持久）。
 
-```
-./.agent_memories/
-└── {user_id}/
+#### 目录结构
+
+```text
+.agent_memories/{user_id}/
+├── profile.md                    # 用户画像（跨会话持久）
+├── habit.md                      # 用户习惯（跨会话持久）
+└── sessions/
     └── {session_id}/
-        └── AGENTS.md    # 会话记忆文件
+        ├── context.md            # 当前会话上下文
+        └── meta.json             # 轻量元数据
 ```
 
-AGENTS.md 文件结构：
+#### 核心设计
 
-```markdown
-# AGENTS.md
+| 文件 | 级别 | 内容 | 持久性 |
+|------|------|------|--------|
+| `profile.md` | 用户级 | 职业、背景、技能、偏好 | 跨会话 |
+| `habit.md` | 用户级 | 工作流程、操作习惯 | 跨会话 |
+| `context.md` | 会话级 | 当前任务、轮次摘要 | 会话内 |
+| `meta.json` | 会话级 | created_at, updated_at, round_count | 会话内 |
 
-## Meta
-- user: user_001
-- session: sess_abc
-- created: 2025-01-12T10:30:00
-- updated: 2025-01-12T11:45:00
-
-## Context
-当前任务: 重构记忆管理
-
-## History
-### Round 1
-**User**: 分析项目结构
-**Assistant**: 项目使用 FastAPI...
-**Tools**: read_file, ls
-
-## Key Facts
-- 已修改文件: src/core/agent.py
-- 待办: 添加测试
-
-## Notes
-- [10:30] 用户偏好简洁方案
-```
-
-使用方式：
+#### 使用方式
 
 ```python
-from omni_agent.core import FileMemory, FileMemoryManager
+from omni_agent.core import Memory, MemoryManager
 
-# 创建记忆实例
-mem = FileMemory(user_id="user_001", session_id="sess_abc")
-mem.init_memory("任务上下文")
-mem.append_round(1, "用户消息", "助手回复", ["read_file", "ls"])
+mem = Memory(user_id="user_001", session_id="sess_abc")
+mem.init_memory(task="重构记忆系统")
 
-# 管理器操作
-mgr = FileMemoryManager()
+# 读写 Markdown 文件
+mem.write_profile("- Python 高级开发者\n- 偏好简洁代码\n")
+mem.append_habit("- TDD 开发流程\n")
+mem.append_context("## Round 1\n\n完成了 Memory 类重写\n")
+
+# 读取
+profile = mem.read_profile()
+habit = mem.read_habit()
+context = mem.read_context()
+
+# 上下文注入（拼接三个 .md 到 <user_memory> 标签）
+prompt_context = mem.get_context_for_prompt()
+
+# 元数据
+mem.increment_round()
+print(mem.round_count)
+
+# 管理器
+mgr = MemoryManager()
 mgr.list_sessions("user_001")
 mgr.cleanup_expired(max_age_days=7)
 ```
 
-优势：
-- **上下文窗口解耦**: 记忆存文件，Agent 按需读取
-- **用户/会话隔离**: 目录结构天然隔离
-- **标准协议**: 遵循 AGENTS.md 开放规范
-- **调试友好**: 直接查看 Markdown 文件
+#### 深度检索工具 (DeepRecallMemoryTool)
+
+`deep_recall_memory` 工具在三个 .md 文件中进行搜索：
+
+| 模式 | 说明 | 依赖 |
+|------|------|------|
+| `keyword` | 按段落切分 .md，关键词匹配 | 无 |
+| `semantic` | 向量语义搜索 | PostgreSQL + pgvector |
+| `hybrid` | 混合搜索，合并语义和关键词结果 | PostgreSQL + pgvector（降级为 keyword） |
+
+参数：
+
+- `query`: 搜索文本（必填）
+- `memory_type`: 按类型过滤（profile/habit/context）
+- `mode`: 搜索模式（默认 hybrid）
+- `limit`: 结果数量上限（默认 5）
+
+#### 自动迁移
+
+旧 JSON 格式（memory.json + memory_detail.json）首次加载时自动迁移：
+
+- profile 条目写入 `profile.md`
+- habit 条目写入 `habit.md`
+- task + context + core_facts 写入 `context.md`
+- 旧文件重命名为 `.json.bak` 保留备份
 
 ## 功能对比
 
