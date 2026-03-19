@@ -97,6 +97,35 @@ class TestOutcomeGrader:
         result = await grader.grade(case, tmp_path, "found 3 files")
         assert result.passed is True
 
+    async def test_file_matches_pass(self, grader, tmp_path):
+        (tmp_path / "report.txt").write_text("Found SQL injection vulnerability in line 5")
+        case = EvalCase(
+            id="t",
+            task="t",
+            grading={"checks": [{"file_matches": ["report.txt", "(?i)sql.?inject"]}]},
+        )
+        result = await grader.grade(case, tmp_path, "")
+        assert result.passed is True
+
+    async def test_file_matches_fail(self, grader, tmp_path):
+        (tmp_path / "report.txt").write_text("No issues found")
+        case = EvalCase(
+            id="t",
+            task="t",
+            grading={"checks": [{"file_matches": ["report.txt", "(?i)sql.?inject"]}]},
+        )
+        result = await grader.grade(case, tmp_path, "")
+        assert result.passed is False
+
+    async def test_file_matches_missing_file(self, grader, tmp_path):
+        case = EvalCase(
+            id="t",
+            task="t",
+            grading={"checks": [{"file_matches": ["missing.txt", "pattern"]}]},
+        )
+        result = await grader.grade(case, tmp_path, "")
+        assert result.passed is False
+
     async def test_multiple_checks_all_pass(self, grader, tmp_path):
         (tmp_path / "out.txt").write_text("hello world")
         case = EvalCase(

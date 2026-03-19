@@ -1,0 +1,301 @@
+# ============================================================
+# L4: Reasoning - 推理与分析能力
+# ============================================================
+
+- id: "reasoning_log_analysis_001"
+  task: |
+    Analyze the server log in error.log and answer:
+    1. What is the most common error type?
+    2. During which hour did the most errors occur?
+    3. Is there a pattern in the errors?
+    Write your analysis to report.txt.
+  tags: ["reasoning", "analysis"]
+  max_steps: 15
+  timeout: 60
+  setup:
+    files:
+      "error.log": |
+        2024-03-01 09:15:23 ERROR [auth] Failed login attempt for user admin from 192.168.1.100
+        2024-03-01 09:16:45 ERROR [auth] Failed login attempt for user admin from 192.168.1.100
+        2024-03-01 09:17:02 ERROR [auth] Failed login attempt for user admin from 192.168.1.100
+        2024-03-01 09:18:30 ERROR [db] Connection pool exhausted
+        2024-03-01 10:01:12 ERROR [api] Timeout on /api/reports endpoint
+        2024-03-01 10:15:33 ERROR [auth] Failed login attempt for user admin from 192.168.1.100
+        2024-03-01 10:16:01 ERROR [auth] Failed login attempt for user admin from 192.168.1.100
+        2024-03-01 11:00:00 ERROR [db] Connection pool exhausted
+        2024-03-01 11:30:22 ERROR [api] Timeout on /api/reports endpoint
+        2024-03-01 14:05:11 ERROR [auth] Failed login attempt for user root from 10.0.0.55
+        2024-03-01 14:05:15 ERROR [auth] Failed login attempt for user root from 10.0.0.55
+        2024-03-01 14:05:18 ERROR [auth] Failed login attempt for user root from 10.0.0.55
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "report.txt"
+      - file_contains: ["report.txt", "auth"]
+      - file_matches: ["report.txt", "(?i)(brute.?force|repeated|attack|suspicious|multiple.*(attempt|login))"]
+
+- id: "reasoning_data_extraction_002"
+  task: |
+    Extract structured information from the unstructured text in document.txt.
+    Create a JSON file extracted.json with the following structure:
+    {"people": [{"name": "...", "role": "...", "company": "..."}]}
+  tags: ["reasoning", "extraction"]
+  max_steps: 10
+  timeout: 45
+  setup:
+    files:
+      "document.txt": |
+        Meeting Notes - Q4 Planning
+
+        Attendees discussed the roadmap for next quarter.
+        John Smith, the CTO of TechCorp, presented the infrastructure plan.
+        Sarah Johnson from DataInc (she's their Head of Engineering) showed the data pipeline proposal.
+        Mike Chen, a Senior Architect at CloudBase, raised concerns about scaling.
+        Lisa Wang who leads the Product team at TechCorp agreed with the timeline.
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "extracted.json"
+      - file_contains: ["extracted.json", "John Smith"]
+      - file_contains: ["extracted.json", "Sarah Johnson"]
+      - file_contains: ["extracted.json", "Mike Chen"]
+      - file_contains: ["extracted.json", "TechCorp"]
+
+- id: "reasoning_code_review_003"
+  task: |
+    Review the code in app.py for potential bugs, security issues, and performance problems.
+    Write a detailed review to review.txt listing each issue found with:
+    - Line reference
+    - Severity (high/medium/low)
+    - Suggested fix
+  tags: ["reasoning", "review"]
+  max_steps: 15
+  timeout: 90
+  setup:
+    files:
+      "app.py": |
+        import os
+        import sqlite3
+        import hashlib
+
+        def get_user(user_id):
+            conn = sqlite3.connect("app.db")
+            query = f"SELECT * FROM users WHERE id = {user_id}"
+            result = conn.execute(query).fetchone()
+            return result
+
+        def hash_password(password):
+            return hashlib.md5(password.encode()).hexdigest()
+
+        def read_config(filename):
+            path = os.path.join("/etc/app/", filename)
+            with open(path) as f:
+                return f.read()
+
+        def process_items(items):
+            result = []
+            for i in range(len(items)):
+                for j in range(len(items)):
+                    if items[i] == items[j] and i != j:
+                        result.append(items[i])
+            return result
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "review.txt"
+      - file_matches: ["review.txt", "(?i)sql.?inject"]
+      - file_matches: ["review.txt", "(?i)(md5|weak.?hash|insecure.?hash)"]
+      - file_matches: ["review.txt", "(?i)(path.?travers|directory.?travers|unsanitized)"]
+
+- id: "reasoning_dependency_graph_004"
+  task: |
+    Analyze the import dependencies between all Python files in the workspace.
+    Create a file dependency_report.txt that shows:
+    1. Which modules depend on which
+    2. Whether there are any circular dependencies
+    3. The dependency order (which modules should be loaded first)
+  tags: ["reasoning", "analysis"]
+  max_steps: 15
+  timeout: 60
+  setup:
+    files:
+      "main.py": |
+        from config import Settings
+        from database import Database
+        from api import Router
+
+        def start():
+            settings = Settings()
+            db = Database(settings)
+            router = Router(db)
+      "config.py": |
+        class Settings:
+            HOST = "localhost"
+            PORT = 8000
+      "database.py": |
+        from config import Settings
+
+        class Database:
+            def __init__(self, settings: Settings):
+                self.settings = settings
+      "api.py": |
+        from database import Database
+        from models import User
+
+        class Router:
+            def __init__(self, db: Database):
+                self.db = db
+      "models.py": |
+        class User:
+            def __init__(self, name: str):
+                self.name = name
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "dependency_report.txt"
+      - file_contains: ["dependency_report.txt", "config"]
+      - file_contains: ["dependency_report.txt", "database"]
+      - file_contains: ["dependency_report.txt", "models"]
+
+- id: "reasoning_performance_005"
+  task: |
+    Analyze the benchmark results in benchmark.txt.
+    Compare the performance of all implementations and write a summary to summary.txt:
+    1. Which implementation is fastest overall?
+    2. Which scales best with input size?
+    3. Recommend which implementation to use for production
+  tags: ["reasoning", "analysis"]
+  max_steps: 10
+  timeout: 45
+  setup:
+    files:
+      "benchmark.txt": |
+        Performance Benchmark Results
+        ============================
+
+        Implementation A (list-based):
+          n=100:    0.001s
+          n=1000:   0.08s
+          n=10000:  8.2s
+          n=100000: 820s
+
+        Implementation B (dict-based):
+          n=100:    0.002s
+          n=1000:   0.02s
+          n=10000:  0.21s
+          n=100000: 2.1s
+
+        Implementation C (sorted + binary search):
+          n=100:    0.003s
+          n=1000:   0.03s
+          n=10000:  0.35s
+          n=100000: 4.0s
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "summary.txt"
+      - file_matches: ["summary.txt", "(?i)(B|dict)"]
+      - file_matches: ["summary.txt", "(?i)(O\\(n\\)|linear|scales.*(best|well)|quadratic|exponential)"]
+
+- id: "reasoning_math_word_problem_006"
+  task: |
+    Solve the math problems in problems.txt. Write solutions with step-by-step work to solutions.txt.
+  tags: ["reasoning", "math"]
+  max_steps: 10
+  timeout: 45
+  setup:
+    files:
+      "problems.txt": |
+        Problem 1:
+        A store has a 25% off sale. An item originally costs $80.
+        If you also have a $10 coupon applied after the discount, what is the final price?
+
+        Problem 2:
+        A train travels from City A to City B at 60 km/h and returns at 40 km/h.
+        If the distance between the cities is 120 km, what is the average speed for the round trip?
+
+        Problem 3:
+        You have 3 red balls and 5 blue balls in a bag. You draw 2 balls without replacement.
+        What is the probability that both balls are red?
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "solutions.txt"
+      - file_contains: ["solutions.txt", "50"]
+      - file_contains: ["solutions.txt", "48"]
+      - file_matches: ["solutions.txt", "(?i)(3/28|0\\.107|10\\.7)"]
+
+- id: "reasoning_config_conflict_007"
+  task: |
+    Compare config_dev.yaml and config_prod.yaml in the workspace.
+    Identify all differences and potential issues (like debug mode in prod, weak passwords, etc).
+    Write findings to audit.txt.
+  tags: ["reasoning", "analysis"]
+  max_steps: 10
+  timeout: 45
+  setup:
+    files:
+      "config_dev.yaml": |
+        app:
+          name: MyApp
+          debug: true
+          log_level: DEBUG
+        database:
+          host: localhost
+          port: 5432
+          password: dev123
+          pool_size: 5
+        redis:
+          host: localhost
+          port: 6379
+        security:
+          secret_key: dev-secret-key-12345
+          cors_origins: ["*"]
+          rate_limit: 1000
+      "config_prod.yaml": |
+        app:
+          name: MyApp
+          debug: true
+          log_level: DEBUG
+        database:
+          host: db.production.internal
+          port: 5432
+          password: prod123
+          pool_size: 5
+        redis:
+          host: redis.production.internal
+          port: 6379
+        security:
+          secret_key: prod-secret-key-12345
+          cors_origins: ["*"]
+          rate_limit: 100
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "audit.txt"
+      - file_matches: ["audit.txt", "(?i)debug.*(true|enabled|on)"]
+      - file_matches: ["audit.txt", "(?i)(cors|wildcard|\\*)"]
+      - file_matches: ["audit.txt", "(?i)(weak|simple|password|secret)"]
+
+- id: "reasoning_regex_008"
+  task: |
+    The file patterns.txt contains text patterns that need to be matched.
+    For each pattern description, write the corresponding Python regex in regex_solutions.py.
+    Each function should take a string and return True/False.
+  tags: ["reasoning", "coding"]
+  max_steps: 12
+  timeout: 45
+  setup:
+    files:
+      "patterns.txt": |
+        1. Match a valid email address (basic format: user@domain.tld)
+        2. Match a valid IPv4 address (e.g., 192.168.1.1)
+        3. Match a date in YYYY-MM-DD format
+        4. Match a hex color code (e.g., #FF00AA or #f0f)
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "regex_solutions.py"
+      - file_contains: ["regex_solutions.py", "import re"]
+      - file_contains: ["regex_solutions.py", "def"]
+      - file_matches: ["regex_solutions.py", "(re\\.match|re\\.search|re\\.fullmatch)"]

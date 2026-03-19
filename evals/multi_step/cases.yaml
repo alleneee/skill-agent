@@ -1,3 +1,7 @@
+# ============================================================
+# L2: Multi-Step Tasks - 多步推理与任务完成
+# ============================================================
+
 - id: "multi_create_module_001"
   task: |
     Create a Python module in the workspace:
@@ -78,3 +82,260 @@
       - file_contains: ["calculator.py", "zero"]
       - file_contains: ["test_calculator.py", "def test_"]
       - file_contains: ["test_calculator.py", "divide"]
+
+- id: "multi_api_design_002"
+  task: |
+    Design a simple REST API data layer:
+    1. Create models.py with a User class that has fields: id (int), name (str), email (str), created_at (str)
+    2. Create repository.py with an InMemoryUserRepository class that supports: add(user), get(id), list_all(), delete(id)
+    3. Create test_repository.py that tests add, get, list_all, and delete operations
+  tags: ["multi_step", "coding", "design"]
+  max_steps: 20
+  timeout: 90
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "models.py"
+      - file_exists: "repository.py"
+      - file_exists: "test_repository.py"
+      - file_contains: ["models.py", "class User"]
+      - file_contains: ["models.py", "name"]
+      - file_contains: ["models.py", "email"]
+      - file_contains: ["repository.py", "class InMemoryUserRepository"]
+      - file_contains: ["repository.py", "def add"]
+      - file_contains: ["repository.py", "def get"]
+      - file_contains: ["repository.py", "def delete"]
+      - file_contains: ["test_repository.py", "def test_"]
+
+- id: "multi_config_migration_003"
+  task: |
+    Migrate the configuration from config.ini format to config.yaml format:
+    1. Read config.ini in the workspace
+    2. Create config.yaml with the same settings but in YAML format
+    3. Create a migration_report.txt summarizing what was migrated
+  tags: ["multi_step", "migration"]
+  max_steps: 15
+  timeout: 60
+  setup:
+    files:
+      "config.ini": |
+        [database]
+        host = localhost
+        port = 5432
+        name = myapp
+
+        [redis]
+        host = localhost
+        port = 6379
+
+        [app]
+        debug = true
+        log_level = INFO
+        max_workers = 4
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "config.yaml"
+      - file_exists: "migration_report.txt"
+      - file_contains: ["config.yaml", "database"]
+      - file_contains: ["config.yaml", "5432"]
+      - file_contains: ["config.yaml", "redis"]
+      - file_contains: ["config.yaml", "6379"]
+
+- id: "multi_log_analysis_004"
+  task: |
+    Analyze the log file access.log in the workspace:
+    1. Count the number of requests per HTTP method (GET, POST, PUT, DELETE)
+    2. Identify which endpoint got the most requests
+    3. Find any requests that returned 500 status code
+    4. Write a summary report to analysis.txt
+  tags: ["multi_step", "analysis"]
+  max_steps: 15
+  timeout: 60
+  setup:
+    files:
+      "access.log": |
+        2024-01-01 10:00:01 GET /api/users 200 45ms
+        2024-01-01 10:00:02 POST /api/users 201 120ms
+        2024-01-01 10:00:03 GET /api/users 200 38ms
+        2024-01-01 10:00:04 GET /api/products 200 55ms
+        2024-01-01 10:00:05 PUT /api/users/1 200 88ms
+        2024-01-01 10:00:06 GET /api/users 200 42ms
+        2024-01-01 10:00:07 DELETE /api/users/2 204 33ms
+        2024-01-01 10:00:08 GET /api/products 200 50ms
+        2024-01-01 10:00:09 POST /api/orders 500 200ms
+        2024-01-01 10:00:10 GET /api/users 200 40ms
+        2024-01-01 10:00:11 GET /api/products 200 48ms
+        2024-01-01 10:00:12 POST /api/orders 201 150ms
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "analysis.txt"
+      - file_contains: ["analysis.txt", "GET"]
+      - file_contains: ["analysis.txt", "/api/users"]
+      - file_contains: ["analysis.txt", "500"]
+
+- id: "multi_dependency_fix_005"
+  task: |
+    The project has circular import issues. Fix them:
+    1. Read all Python files in the workspace
+    2. Identify the circular dependency
+    3. Fix it by restructuring the imports
+    4. Make sure all files still have their original functionality
+  tags: ["multi_step", "debug", "refactor"]
+  max_steps: 20
+  timeout: 90
+  setup:
+    files:
+      "models.py": |
+        from services import UserService
+
+        class User:
+            def __init__(self, name: str):
+                self.name = name
+
+            def get_service(self) -> "UserService":
+                return UserService(self)
+      "services.py": |
+        from models import User
+
+        class UserService:
+            def __init__(self, user: User):
+                self.user = user
+
+            def create_user(self, name: str) -> User:
+                return User(name)
+  grading:
+    type: "outcome"
+    checks:
+      - file_contains: ["models.py", "class User"]
+      - file_contains: ["services.py", "class UserService"]
+      - file_contains: ["services.py", "def create_user"]
+
+- id: "multi_test_coverage_006"
+  task: |
+    The file string_utils.py has several functions but no tests.
+    Create comprehensive tests in test_string_utils.py covering:
+    1. Normal cases for each function
+    2. Edge cases (empty string, None, special characters)
+    3. Run the tests with pytest and report results
+  tags: ["multi_step", "testing"]
+  max_steps: 25
+  timeout: 120
+  setup:
+    files:
+      "string_utils.py": |
+        def capitalize_words(text: str) -> str:
+            return " ".join(word.capitalize() for word in text.split())
+
+        def reverse_string(text: str) -> str:
+            return text[::-1]
+
+        def count_vowels(text: str) -> int:
+            return sum(1 for c in text.lower() if c in "aeiou")
+
+        def is_palindrome(text: str) -> bool:
+            cleaned = "".join(c.lower() for c in text if c.isalnum())
+            return cleaned == cleaned[::-1]
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "test_string_utils.py"
+      - file_contains: ["test_string_utils.py", "capitalize_words"]
+      - file_contains: ["test_string_utils.py", "reverse_string"]
+      - file_contains: ["test_string_utils.py", "count_vowels"]
+      - file_contains: ["test_string_utils.py", "is_palindrome"]
+      - file_contains: ["test_string_utils.py", "def test_"]
+
+- id: "multi_data_pipeline_007"
+  task: |
+    Build a data processing pipeline:
+    1. Read the raw data from data.csv
+    2. Create a script process.py that:
+       - Reads the CSV
+       - Filters rows where age > 25
+       - Sorts by age descending
+       - Writes output to filtered.csv
+    3. Run the script and verify filtered.csv is created with correct data
+  tags: ["multi_step", "data"]
+  max_steps: 15
+  timeout: 60
+  setup:
+    files:
+      "data.csv": |
+        name,age,score
+        Alice,30,85
+        Bob,22,90
+        Charlie,35,78
+        Diana,20,92
+        Eve,28,88
+        Frank,45,75
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "process.py"
+      - file_exists: "filtered.csv"
+      - file_contains: ["filtered.csv", "Alice"]
+      - file_contains: ["filtered.csv", "Charlie"]
+      - file_contains: ["filtered.csv", "Eve"]
+      - file_not_contains: ["filtered.csv", "Bob"]
+      - file_not_contains: ["filtered.csv", "Diana"]
+
+- id: "multi_error_handling_008"
+  task: |
+    Improve the error handling in api_client.py:
+    1. Add proper exception handling for network errors, timeout, and invalid JSON
+    2. Add retry logic with max 3 retries
+    3. Add logging for each retry attempt
+    4. Create a custom exception class ApiError
+  tags: ["multi_step", "refactor", "error_handling"]
+  max_steps: 15
+  timeout: 60
+  setup:
+    files:
+      "api_client.py": |
+        import urllib.request
+        import json
+
+        def fetch_data(url: str) -> dict:
+            response = urllib.request.urlopen(url)
+            data = response.read()
+            return json.loads(data)
+
+        def post_data(url: str, payload: dict) -> dict:
+            data = json.dumps(payload).encode()
+            req = urllib.request.Request(url, data=data)
+            response = urllib.request.urlopen(req)
+            return json.loads(response.read())
+  grading:
+    type: "outcome"
+    checks:
+      - file_contains: ["api_client.py", "class ApiError"]
+      - file_contains: ["api_client.py", "retry"]
+      - file_contains: ["api_client.py", "except"]
+      - file_contains: ["api_client.py", "def fetch_data"]
+      - file_contains: ["api_client.py", "def post_data"]
+
+- id: "multi_cli_tool_009"
+  task: |
+    Create a command-line tool:
+    1. Create cli.py with argparse that accepts: --input (required), --output (default: output.txt), --uppercase (flag)
+    2. The tool reads the input file, optionally converts to uppercase, and writes to the output file
+    3. Create a test input file test_input.txt with sample text
+    4. Run the CLI tool and verify it works
+  tags: ["multi_step", "coding"]
+  max_steps: 15
+  timeout: 60
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "cli.py"
+      - file_contains: ["cli.py", "argparse"]
+      - file_contains: ["cli.py", "--input"]
+      - file_contains: ["cli.py", "--output"]
+      - file_contains: ["cli.py", "--uppercase"]
+      - file_exists: "test_input.txt"

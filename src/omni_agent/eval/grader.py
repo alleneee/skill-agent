@@ -67,6 +67,8 @@ class OutcomeGrader(BaseGrader):
             return self._check_result_contains(check["result_contains"], result)
         if "result_matches" in check:
             return self._check_result_matches(check["result_matches"], result)
+        if "file_matches" in check:
+            return self._check_file_matches(check["file_matches"], workspace)
         return False, f"unknown check type: {list(check.keys())}"
 
     def _check_file_contains(self, args: list[str], workspace: Path) -> tuple[bool, str]:
@@ -104,6 +106,16 @@ class OutcomeGrader(BaseGrader):
         if re.search(pattern, result):
             return True, ""
         return False, f"result does not match pattern '{pattern}'"
+
+    def _check_file_matches(self, args: list[str], workspace: Path) -> tuple[bool, str]:
+        filepath, pattern = args[0], args[1]
+        target = workspace / filepath
+        if not target.exists():
+            return False, f"file {filepath} not found"
+        content = target.read_text()
+        if re.search(pattern, content):
+            return True, ""
+        return False, f"file {filepath} does not match pattern '{pattern}'"
 
 
 class LLMGrader(BaseGrader):

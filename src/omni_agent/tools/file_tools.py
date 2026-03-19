@@ -17,6 +17,25 @@ from typing import Any
 from .base import Tool, ToolResult
 
 
+def _resolve_and_validate(path: str, workspace_dir: Path) -> Path:
+    file_path = Path(path)
+    if not file_path.is_absolute():
+        file_path = workspace_dir / file_path
+    resolved = file_path.resolve()
+    workspace_resolved = workspace_dir.resolve()
+    if not str(resolved).startswith(str(workspace_resolved) + "/") and resolved != workspace_resolved:
+        raise PermissionError(
+            f"Access denied: path '{path}' is outside workspace '{workspace_dir}'"
+        )
+    if file_path.exists() and file_path.is_symlink():
+        target = file_path.readlink().resolve()
+        if not str(target).startswith(str(workspace_resolved) + "/") and target != workspace_resolved:
+            raise PermissionError(
+                f"Access denied: symlink target is outside workspace"
+            )
+    return resolved
+
+
 class ReadTool(Tool):
     """读取文件内容。"""
 
@@ -62,9 +81,7 @@ class ReadTool(Tool):
     ) -> ToolResult:
         """执行文件读取。"""
         try:
-            file_path = Path(path)
-            if not file_path.is_absolute():
-                file_path = self.workspace_dir / file_path
+            file_path = _resolve_and_validate(path, self.workspace_dir)
 
             if not file_path.exists():
                 return ToolResult(
@@ -135,9 +152,7 @@ class WriteTool(Tool):
     async def execute(self, path: str, content: str) -> ToolResult:
         """执行文件写入。"""
         try:
-            file_path = Path(path)
-            if not file_path.is_absolute():
-                file_path = self.workspace_dir / file_path
+            file_path = _resolve_and_validate(path, self.workspace_dir)
 
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(content, encoding="utf-8")
@@ -194,9 +209,7 @@ class EditTool(Tool):
     ) -> ToolResult:
         """执行文件编辑。"""
         try:
-            file_path = Path(path)
-            if not file_path.is_absolute():
-                file_path = self.workspace_dir / file_path
+            file_path = _resolve_and_validate(path, self.workspace_dir)
 
             if not file_path.exists():
                 return ToolResult(
@@ -266,9 +279,7 @@ class ListDirTool(Tool):
 
     async def execute(self, path: str = ".", recursive: bool = False) -> ToolResult:
         try:
-            dir_path = Path(path)
-            if not dir_path.is_absolute():
-                dir_path = self.workspace_dir / dir_path
+            dir_path = _resolve_and_validate(path, self.workspace_dir)
 
             if not dir_path.exists():
                 return ToolResult(success=False, content="", error=f"Directory not found: {path}")
@@ -340,9 +351,7 @@ class GlobTool(Tool):
 
     async def execute(self, pattern: str, path: str = ".") -> ToolResult:
         try:
-            base_path = Path(path)
-            if not base_path.is_absolute():
-                base_path = self.workspace_dir / base_path
+            base_path = _resolve_and_validate(path, self.workspace_dir)
 
             if not base_path.exists():
                 return ToolResult(success=False, content="", error=f"Path not found: {path}")
@@ -408,9 +417,7 @@ class GrepTool(Tool):
         context: int = 0,
     ) -> ToolResult:
         try:
-            search_path = Path(path)
-            if not search_path.is_absolute():
-                search_path = self.workspace_dir / search_path
+            search_path = _resolve_and_validate(path, self.workspace_dir)
 
             if not search_path.exists():
                 return ToolResult(success=False, content="", error=f"Path not found: {path}")

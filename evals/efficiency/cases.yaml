@@ -1,0 +1,147 @@
+# ============================================================
+# L6: Efficiency - 效率基准测试
+# 这些用例关注 agent 用最少步骤完成任务的能力
+# ============================================================
+
+- id: "efficiency_one_shot_001"
+  task: "What is 2 + 2? Reply with just the number."
+  tags: ["efficiency", "quick"]
+  max_steps: 3
+  timeout: 15
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - result_contains: "4"
+
+- id: "efficiency_direct_read_002"
+  task: "Read version.txt and tell me the version number."
+  tags: ["efficiency", "quick"]
+  max_steps: 3
+  timeout: 15
+  setup:
+    files:
+      "version.txt": "1.2.3"
+  grading:
+    type: "outcome"
+    checks:
+      - result_contains: "1.2.3"
+
+- id: "efficiency_single_edit_003"
+  task: "Change the port number in server.py from 3000 to 8080."
+  tags: ["efficiency", "quick"]
+  max_steps: 5
+  timeout: 20
+  setup:
+    files:
+      "server.py": |
+        HOST = "0.0.0.0"
+        PORT = 3000
+
+        def start():
+            print(f"Listening on {HOST}:{PORT}")
+  grading:
+    type: "outcome"
+    checks:
+      - file_contains: ["server.py", "8080"]
+      - file_not_contains: ["server.py", "3000"]
+
+- id: "efficiency_multi_file_read_004"
+  task: |
+    Read all three config files (dev.env, staging.env, prod.env) and tell me which environments have DEBUG set to true.
+  tags: ["efficiency"]
+  max_steps: 8
+  timeout: 30
+  setup:
+    files:
+      "dev.env": |
+        DEBUG=true
+        LOG_LEVEL=debug
+        DB_HOST=localhost
+      "staging.env": |
+        DEBUG=true
+        LOG_LEVEL=info
+        DB_HOST=staging-db.internal
+      "prod.env": |
+        DEBUG=false
+        LOG_LEVEL=warning
+        DB_HOST=prod-db.internal
+  grading:
+    type: "outcome"
+    checks:
+      - result_matches: "(?i)dev"
+      - result_matches: "(?i)staging"
+
+- id: "efficiency_create_run_005"
+  task: |
+    Create a Python script hello.py that prints "Hello, World!" and run it.
+    Report the output.
+  tags: ["efficiency"]
+  max_steps: 5
+  timeout: 20
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "hello.py"
+      - result_contains: "Hello, World!"
+
+- id: "efficiency_find_needle_006"
+  task: |
+    There are 5 Python files in the workspace. Only one of them contains a function called secret_function.
+    Find which file contains it and report the filename.
+  tags: ["efficiency"]
+  max_steps: 8
+  timeout: 30
+  setup:
+    files:
+      "alpha.py": |
+        def process_data():
+            return [1, 2, 3]
+      "beta.py": |
+        def transform_input(x):
+            return x * 2
+      "gamma.py": |
+        def secret_function():
+            return "you found me"
+      "delta.py": |
+        def validate_config():
+            return True
+      "epsilon.py": |
+        def format_output(data):
+            return str(data)
+  grading:
+    type: "outcome"
+    checks:
+      - result_contains: "gamma"
+
+- id: "efficiency_batch_rename_007"
+  task: |
+    There are files old_module_a.py, old_module_b.py, old_module_c.py in the workspace.
+    Rename them to module_a.py, module_b.py, module_c.py (remove the old_ prefix).
+    Preserve their contents.
+  tags: ["efficiency"]
+  max_steps: 10
+  timeout: 30
+  setup:
+    files:
+      "old_module_a.py": |
+        def func_a():
+            return "a"
+      "old_module_b.py": |
+        def func_b():
+            return "b"
+      "old_module_c.py": |
+        def func_c():
+            return "c"
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "module_a.py"
+      - file_exists: "module_b.py"
+      - file_exists: "module_c.py"
+      - file_contains: ["module_a.py", "def func_a"]
+      - file_contains: ["module_b.py", "def func_b"]
+      - file_contains: ["module_c.py", "def func_c"]

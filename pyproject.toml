@@ -42,6 +42,7 @@ dev = [
     "ruff>=0.2.0",
     "mypy>=1.8.0",
     "httpx>=0.26.0",
+    "datasets>=4.8.2",
 ]
 redis = [
     "redis>=5.0.0",  # Redis async client for session storage

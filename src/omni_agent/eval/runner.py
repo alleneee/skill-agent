@@ -22,7 +22,7 @@ def _create_base_tools(workspace_dir: str) -> list[Any]:
         ReadTool(workspace_dir=workspace_dir),
         WriteTool(workspace_dir=workspace_dir),
         EditTool(workspace_dir=workspace_dir),
-        BashTool(),
+        BashTool(workspace_dir=workspace_dir),
     ]
 
 

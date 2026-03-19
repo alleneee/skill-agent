@@ -1,3 +1,9 @@
+# ============================================================
+# L1: Tool Usage - 工具调用准确性
+# ============================================================
+
+# --- Read Tool ---
+
 - id: "tool_read_file_001"
   task: "Read the file app.py in the workspace and tell me what functions are defined in it."
   tags: ["tool", "read", "quick"]
@@ -17,6 +23,59 @@
       - result_contains: "hello"
       - result_contains: "add"
 
+- id: "tool_read_file_002"
+  task: "Read the file data.csv in the workspace and tell me how many rows of data it has (not counting the header)."
+  tags: ["tool", "read", "quick"]
+  max_steps: 5
+  timeout: 30
+  setup:
+    files:
+      "data.csv": |
+        name,age,city
+        Alice,30,Beijing
+        Bob,25,Shanghai
+        Charlie,35,Shenzhen
+        Diana,28,Guangzhou
+  grading:
+    type: "outcome"
+    checks:
+      - result_contains: "4"
+
+- id: "tool_read_nonexistent_003"
+  task: "Try to read the file missing.txt in the workspace. Report whether the file exists or not."
+  tags: ["tool", "read", "error_handling", "quick"]
+  max_steps: 5
+  timeout: 30
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - result_matches: "(?i)(not found|does not exist|not exist|no such|missing|doesn't exist)"
+
+- id: "tool_read_large_004"
+  task: "Read the file log.txt in the workspace. What is the last log entry's timestamp and level?"
+  tags: ["tool", "read"]
+  max_steps: 5
+  timeout: 30
+  setup:
+    files:
+      "log.txt": |
+        2024-01-01 10:00:00 INFO Application started
+        2024-01-01 10:01:15 DEBUG Processing request #1
+        2024-01-01 10:02:30 WARN Memory usage high
+        2024-01-01 10:03:45 ERROR Database connection failed
+        2024-01-01 10:05:00 INFO Retry successful
+        2024-01-01 10:06:12 DEBUG Cache cleared
+        2024-01-01 10:07:30 CRITICAL System shutdown initiated
+  grading:
+    type: "outcome"
+    checks:
+      - result_contains: "10:07:30"
+      - result_matches: "(?i)critical"
+
+# --- Write Tool ---
+
 - id: "tool_write_file_001"
   task: "Create a file called greeting.py in the workspace with a function greet(name) that returns 'Hello, {name}!'."
   tags: ["tool", "write", "quick"]
@@ -30,6 +89,37 @@
       - file_exists: "greeting.py"
       - file_contains: ["greeting.py", "def greet"]
       - file_contains: ["greeting.py", "Hello"]
+
+- id: "tool_write_json_005"
+  task: "Create a file called config.json in the workspace with the following content: a JSON object with keys 'host' set to 'localhost', 'port' set to 8080, and 'debug' set to true."
+  tags: ["tool", "write", "quick"]
+  max_steps: 5
+  timeout: 30
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "config.json"
+      - file_contains: ["config.json", "localhost"]
+      - file_contains: ["config.json", "8080"]
+      - file_contains: ["config.json", "true"]
+
+- id: "tool_write_nested_006"
+  task: "Create a file at src/utils/helpers.py in the workspace with a function slugify(text) that converts text to lowercase and replaces spaces with hyphens."
+  tags: ["tool", "write"]
+  max_steps: 5
+  timeout: 30
+  setup:
+    dirs: ["src", "src/utils"]
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "src/utils/helpers.py"
+      - file_contains: ["src/utils/helpers.py", "def slugify"]
+      - file_contains: ["src/utils/helpers.py", "lower"]
+
+# --- Edit Tool ---
 
 - id: "tool_edit_file_001"
   task: "Edit config.py in the workspace: change DEBUG = False to DEBUG = True."
@@ -48,6 +138,51 @@
       - file_contains: ["config.py", "DEBUG = True"]
       - file_not_contains: ["config.py", "DEBUG = False"]
 
+- id: "tool_edit_multi_007"
+  task: "Edit settings.py in the workspace: change the DATABASE_HOST from '127.0.0.1' to 'db.production.internal' and change DATABASE_PORT from 5432 to 5433."
+  tags: ["tool", "edit"]
+  max_steps: 8
+  timeout: 30
+  setup:
+    files:
+      "settings.py": |
+        DATABASE_HOST = "127.0.0.1"
+        DATABASE_PORT = 5432
+        DATABASE_NAME = "myapp"
+        DATABASE_USER = "admin"
+  grading:
+    type: "outcome"
+    checks:
+      - file_contains: ["settings.py", "db.production.internal"]
+      - file_contains: ["settings.py", "5433"]
+      - file_not_contains: ["settings.py", "127.0.0.1"]
+      - file_not_contains: ["settings.py", "5432"]
+
+- id: "tool_edit_add_import_008"
+  task: "Edit main.py in the workspace: add 'import json' at the top of the file (after the existing imports) and add a function parse_config() that reads config.json and returns the parsed JSON."
+  tags: ["tool", "edit"]
+  max_steps: 8
+  timeout: 30
+  setup:
+    files:
+      "main.py": |
+        import os
+        import sys
+
+        def main():
+            print("Hello World")
+
+        if __name__ == "__main__":
+            main()
+  grading:
+    type: "outcome"
+    checks:
+      - file_contains: ["main.py", "import json"]
+      - file_contains: ["main.py", "def parse_config"]
+      - file_contains: ["main.py", "def main"]
+
+# --- Bash Tool ---
+
 - id: "tool_bash_001"
   task: "Use bash to list all .py files in the workspace directory and report the count."
   tags: ["tool", "bash", "quick"]
@@ -62,3 +197,77 @@
     type: "outcome"
     checks:
       - result_contains: "2"
+
+- id: "tool_bash_exec_009"
+  task: "There is a Python script calc.py in the workspace. Run it using bash and report the output."
+  tags: ["tool", "bash", "quick"]
+  max_steps: 5
+  timeout: 30
+  setup:
+    files:
+      "calc.py": |
+        result = sum(range(1, 11))
+        print(f"Sum of 1 to 10 is {result}")
+  grading:
+    type: "outcome"
+    checks:
+      - result_contains: "55"
+
+- id: "tool_bash_pipe_010"
+  task: "Use bash to count the number of lines in all .py files in the workspace combined."
+  tags: ["tool", "bash"]
+  max_steps: 5
+  timeout: 30
+  setup:
+    files:
+      "a.py": |
+        def func_a():
+            return 1
+      "b.py": |
+        def func_b():
+            return 2
+
+        def func_c():
+            return 3
+  grading:
+    type: "outcome"
+    checks:
+      - result_matches: "[78]"
+
+# --- Tool Combination ---
+
+- id: "tool_combo_read_edit_011"
+  task: "Read the file app.py in the workspace, find all functions that don't have return type annotations, and add ': str' return type annotation to each function."
+  tags: ["tool", "combo"]
+  max_steps: 10
+  timeout: 45
+  setup:
+    files:
+      "app.py": |
+        def get_name():
+            return "Alice"
+
+        def get_greeting(name):
+            return f"Hello, {name}"
+
+        def get_farewell(name: str) -> str:
+            return f"Goodbye, {name}"
+  grading:
+    type: "outcome"
+    checks:
+      - file_contains: ["app.py", "def get_name()"]
+      - file_contains: ["app.py", "-> str"]
+      - file_contains: ["app.py", "def get_farewell"]
+
+- id: "tool_combo_write_bash_012"
+  task: "Create a Python script called fibonacci.py in the workspace that prints the first 10 Fibonacci numbers (one per line, starting from 0, 1, 1, 2, ...). Then run it using bash and report the output."
+  tags: ["tool", "combo"]
+  max_steps: 10
+  timeout: 45
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "fibonacci.py"
+      - result_contains: "34"

@@ -94,6 +94,8 @@ class LLMClient:
         model: str = "gpt-4o",
         timeout: float = 120.0,
         retry_config: RetryConfig | None = None,
+        thinking: bool = False,
+        thinking_budget: int = 8000,
     ) -> None:
         self.api_key = api_key
         self.api_base = api_base.rstrip("/") if api_base else None
@@ -101,6 +103,8 @@ class LLMClient:
         self.timeout = timeout
         self.retry_config = retry_config or RetryConfig()
         self.retry_callback = None
+        self.thinking = thinking
+        self.thinking_budget = thinking_budget
 
     def _get_max_tokens_limit(self) -> int:
         """根据模型名称获取提供商特定的 max_tokens 限制."""
@@ -227,6 +231,12 @@ class LLMClient:
         if metadata:
             kwargs["metadata"] = metadata
 
+        if self.thinking:
+            kwargs["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": self.thinking_budget,
+            }
+
         response = await acompletion(**kwargs)
         return response
 
@@ -267,7 +277,20 @@ class LLMClient:
         choice = response.choices[0]
         message = choice.message
 
-        text_content = _clean_content(message.content or "")
+        thinking_text = None
+        if isinstance(message.content, list):
+            text_parts = []
+            for block in message.content:
+                if isinstance(block, dict):
+                    if block.get("type") == "thinking":
+                        thinking_text = block.get("thinking", "")
+                    elif block.get("type") == "text":
+                        text_parts.append(block.get("text", ""))
+                else:
+                    text_parts.append(str(block))
+            text_content = _clean_content("".join(text_parts))
+        else:
+            text_content = _clean_content(message.content or "")
         tool_calls = []
 
         if message.tool_calls:
@@ -300,7 +323,7 @@ class LLMClient:
 
         return LLMResponse(
             content=text_content,
-            thinking=None,
+            thinking=thinking_text,
             tool_calls=tool_calls if tool_calls else None,
             finish_reason=choice.finish_reason or "stop",
             usage=usage,

@@ -1,0 +1,327 @@
+# ============================================================
+# L3: Code Generation - 代码生成与执行
+# ============================================================
+
+- id: "codegen_function_001"
+  task: |
+    Create a file called sort_utils.py in the workspace with the following functions:
+    1. bubble_sort(arr: list[int]) -> list[int] - implements bubble sort algorithm
+    2. binary_search(arr: list[int], target: int) -> int - returns index or -1 if not found
+    3. merge_sorted(a: list[int], b: list[int]) -> list[int] - merges two sorted lists
+    All functions must have type hints.
+  tags: ["codegen", "algorithm"]
+  max_steps: 10
+  timeout: 45
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "sort_utils.py"
+      - file_contains: ["sort_utils.py", "def bubble_sort"]
+      - file_contains: ["sort_utils.py", "def binary_search"]
+      - file_contains: ["sort_utils.py", "def merge_sorted"]
+      - file_contains: ["sort_utils.py", "-> list"]
+      - file_contains: ["sort_utils.py", "-> int"]
+
+- id: "codegen_class_002"
+  task: |
+    Create a file called stack.py with a Stack class that:
+    1. Uses a list internally for storage
+    2. Has methods: push(item), pop() -> item, peek() -> item, is_empty() -> bool, size() -> int
+    3. pop() and peek() should raise IndexError when the stack is empty
+    Then create test_stack.py with at least 5 test functions covering normal and edge cases.
+  tags: ["codegen", "data_structure"]
+  max_steps: 12
+  timeout: 60
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "stack.py"
+      - file_exists: "test_stack.py"
+      - file_contains: ["stack.py", "class Stack"]
+      - file_contains: ["stack.py", "def push"]
+      - file_contains: ["stack.py", "def pop"]
+      - file_contains: ["stack.py", "def peek"]
+      - file_contains: ["stack.py", "def is_empty"]
+      - file_contains: ["stack.py", "IndexError"]
+      - file_contains: ["test_stack.py", "def test_"]
+
+- id: "codegen_decorator_003"
+  task: |
+    Create a file called decorators.py with the following decorators:
+    1. @timer - measures and prints execution time of the decorated function
+    2. @retry(max_retries=3) - retries the function on exception, up to max_retries times
+    3. @cache - memoizes function results based on arguments
+    Then write a test file test_decorators.py that tests each decorator.
+  tags: ["codegen", "pattern"]
+  max_steps: 15
+  timeout: 60
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "decorators.py"
+      - file_exists: "test_decorators.py"
+      - file_contains: ["decorators.py", "def timer"]
+      - file_contains: ["decorators.py", "def retry"]
+      - file_contains: ["decorators.py", "def cache"]
+      - file_contains: ["decorators.py", "wraps"]
+
+- id: "codegen_from_spec_004"
+  task: |
+    Based on the spec.txt file in the workspace, implement the described password validator in validator.py.
+    Make sure all rules in the spec are implemented.
+    Then run the test cases described in the spec to verify.
+  tags: ["codegen", "spec"]
+  max_steps: 15
+  timeout: 60
+  setup:
+    files:
+      "spec.txt": |
+        Password Validator Specification:
+
+        Function: validate_password(password: str) -> tuple[bool, list[str]]
+        Returns (is_valid, list_of_errors)
+
+        Rules:
+        1. Minimum 8 characters long
+        2. Must contain at least one uppercase letter
+        3. Must contain at least one lowercase letter
+        4. Must contain at least one digit
+        5. Must contain at least one special character (!@#$%^&*)
+        6. Must not contain spaces
+
+        Test cases:
+        - "Abcd1234!" -> (True, [])
+        - "short1!" -> (False, ["too short", ...])
+        - "alllowercase1!" -> (False, ["no uppercase", ...])
+        - "ALLUPPERCASE1!" -> (False, ["no lowercase", ...])
+        - "Abcdefgh!" -> (False, ["no digit", ...])
+        - "Abcd 1234!" -> (False, ["contains spaces", ...])
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "validator.py"
+      - file_contains: ["validator.py", "def validate_password"]
+      - file_contains: ["validator.py", "uppercase"]
+      - file_contains: ["validator.py", "lowercase"]
+      - file_contains: ["validator.py", "digit"]
+
+- id: "codegen_fix_bugs_005"
+  task: |
+    The file linked_list.py has several bugs. Find and fix all of them.
+    After fixing, run the test to verify all tests pass.
+  tags: ["codegen", "debug"]
+  max_steps: 25
+  timeout: 120
+  setup:
+    files:
+      "linked_list.py": |
+        class Node:
+            def __init__(self, value):
+                self.value = value
+                self.next = None
+
+        class LinkedList:
+            def __init__(self):
+                self.head = None
+                self.size = 0
+
+            def append(self, value):
+                node = Node(value)
+                if self.head is None:
+                    self.head = node
+                else:
+                    current = self.head
+                    while current is not None:
+                        current = current.next
+                    current.next = node
+                self.size += 1
+
+            def get(self, index):
+                if index < 0 or index > self.size:
+                    raise IndexError("Index out of range")
+                current = self.head
+                for i in range(index):
+                    current = current.next
+                return current.value
+
+            def remove(self, value):
+                if self.head is None:
+                    return False
+                if self.head.value == value:
+                    self.head = self.head.next
+                    return True
+                current = self.head
+                while current.next is not None:
+                    if current.next.value == value:
+                        current.next = current.next.next
+                        self.size -= 1
+                        return True
+                    current = current.next
+                return False
+
+            def to_list(self):
+                result = []
+                current = self.head
+                while current is not None:
+                    result.append(current.value)
+                    current = current.next
+                return result
+      "test_linked_list.py": |
+        from linked_list import LinkedList
+
+        def test_append():
+            ll = LinkedList()
+            ll.append(1)
+            ll.append(2)
+            ll.append(3)
+            assert ll.to_list() == [1, 2, 3]
+            assert ll.size == 3
+
+        def test_get():
+            ll = LinkedList()
+            ll.append(10)
+            ll.append(20)
+            ll.append(30)
+            assert ll.get(0) == 10
+            assert ll.get(1) == 20
+            assert ll.get(2) == 30
+
+        def test_remove():
+            ll = LinkedList()
+            ll.append(1)
+            ll.append(2)
+            ll.append(3)
+            assert ll.remove(2) == True
+            assert ll.to_list() == [1, 3]
+            assert ll.size == 2
+
+        if __name__ == "__main__":
+            test_append()
+            test_get()
+            test_remove()
+            print("All tests passed!")
+  grading:
+    type: "outcome"
+    checks:
+      - file_contains: ["linked_list.py", "class LinkedList"]
+      - file_contains: ["linked_list.py", "def append"]
+      - result_matches: "(?i)(pass|fixed|bug)"
+
+- id: "codegen_pattern_006"
+  task: |
+    Create a file called observer.py implementing the Observer design pattern:
+    1. An EventEmitter class with methods: on(event, callback), off(event, callback), emit(event, *args)
+    2. Support multiple listeners per event
+    3. Create a simple test that demonstrates the pattern working
+  tags: ["codegen", "pattern"]
+  max_steps: 12
+  timeout: 60
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "observer.py"
+      - file_contains: ["observer.py", "class EventEmitter"]
+      - file_contains: ["observer.py", "def on"]
+      - file_contains: ["observer.py", "def emit"]
+      - file_contains: ["observer.py", "def off"]
+
+- id: "codegen_context_manager_007"
+  task: |
+    Create a file called db_connection.py with:
+    1. A DatabaseConnection class that acts as a context manager
+    2. __enter__ should print "Connected to {database}" and return self
+    3. __exit__ should print "Disconnected from {database}" and handle exceptions gracefully
+    4. A query(sql) method that stores the query in a list
+    5. A get_queries() method that returns all executed queries
+    Write tests in test_db.py verifying the context manager behavior.
+  tags: ["codegen", "pattern"]
+  max_steps: 12
+  timeout: 60
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "db_connection.py"
+      - file_exists: "test_db.py"
+      - file_contains: ["db_connection.py", "class DatabaseConnection"]
+      - file_contains: ["db_connection.py", "__enter__"]
+      - file_contains: ["db_connection.py", "__exit__"]
+      - file_contains: ["db_connection.py", "def query"]
+
+- id: "codegen_async_008"
+  task: |
+    Create a file called async_fetcher.py with:
+    1. An async function fetch_all(urls: list[str]) -> list[str] that would fetch multiple URLs concurrently
+    2. Use asyncio.gather for concurrent execution
+    3. Add proper error handling for failed requests
+    4. Add a rate limiter using asyncio.Semaphore (max 5 concurrent requests)
+  tags: ["codegen", "async"]
+  max_steps: 10
+  timeout: 45
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "async_fetcher.py"
+      - file_contains: ["async_fetcher.py", "async def fetch_all"]
+      - file_contains: ["async_fetcher.py", "asyncio.gather"]
+      - file_contains: ["async_fetcher.py", "Semaphore"]
+
+- id: "codegen_dataclass_009"
+  task: |
+    Create a file called models.py with Python dataclasses:
+    1. Address dataclass with: street, city, state, zip_code
+    2. Person dataclass with: name, age, email, address (Address type)
+    3. A from_dict class method on Person that creates an instance from a nested dictionary
+    4. A to_json method on Person that serializes to JSON string
+    Then run a quick test to verify from_dict and to_json work correctly.
+  tags: ["codegen", "data_structure"]
+  max_steps: 12
+  timeout: 60
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "models.py"
+      - file_contains: ["models.py", "dataclass"]
+      - file_contains: ["models.py", "class Address"]
+      - file_contains: ["models.py", "class Person"]
+      - file_contains: ["models.py", "from_dict"]
+      - file_contains: ["models.py", "to_json"]
+
+- id: "codegen_generate_and_test_010"
+  task: |
+    Create a text processing library:
+    1. Create text_processor.py with functions:
+       - word_count(text) -> int
+       - char_frequency(text) -> dict[str, int]
+       - extract_emails(text) -> list[str] (using regex)
+       - truncate(text, max_length, suffix="...") -> str
+    2. Create test_text_processor.py with comprehensive tests
+    3. Run the tests and report results
+  tags: ["codegen", "testing"]
+  max_steps: 25
+  timeout: 120
+  setup:
+    dirs: []
+  grading:
+    type: "outcome"
+    checks:
+      - file_exists: "text_processor.py"
+      - file_exists: "test_text_processor.py"
+      - file_contains: ["text_processor.py", "def word_count"]
+      - file_contains: ["text_processor.py", "def char_frequency"]
+      - file_contains: ["text_processor.py", "def extract_emails"]
+      - file_contains: ["text_processor.py", "def truncate"]
+      - file_contains: ["test_text_processor.py", "def test_"]

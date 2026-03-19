@@ -27,7 +27,10 @@ class IsolatedWorkspace:
         for filepath, content in files.items():
             target = self.path / filepath
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(content)
+            if isinstance(content, bytes):
+                target.write_bytes(content)
+            else:
+                target.write_text(content)
 
         dirs = self._setup.get("dirs", [])
         for d in dirs:
