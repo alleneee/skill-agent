@@ -72,6 +72,20 @@ Import path: `from omni_agent.core import Agent` (never use `src.` prefix)
 - No new lint warnings
 - No new dependencies unless justified
 
+## Evaluation
+
+```bash
+# Internal evals (61 cases across 6 categories)
+uv run python -m omni_agent.eval --tags quick
+
+# External benchmarks
+uv run python -m omni_agent.eval.benchmarks bfcl --categories simple --max-cases 20
+uv run python -m omni_agent.eval.benchmarks gaia --levels 1 --max-cases 10
+```
+
+Eval cases: `evals/*/cases.yaml`
+Benchmark adapters: `src/omni_agent/eval/benchmarks/`
+
 ## Tool Descriptions
 
 | Tool | Correct Usage | Common Mistake |
@@ -82,6 +96,26 @@ Import path: `from omni_agent.core import Agent` (never use `src.` prefix)
 | `bash` | Shell commands with timeout | Running without timeout on long ops |
 | `spawn_agent` | Bounded subtasks with clear role | Spawning for trivial single-step tasks |
 | `search_knowledge` | RAG queries when ENABLE_RAG=true | Searching before knowledge is indexed |
+
+## Harness (Engineering Guidelines)
+
+Development specifications are in `harness/` directory. Read the relevant document before making changes:
+
+| Document | Scope |
+|----------|-------|
+| `harness/ARCHITECTURE.md` | System layering, component relationships, data flow |
+| `harness/RULES.md` | Code style, naming, imports, Git workflow |
+| `harness/TESTING.md` | Test pyramid, fixtures, mock strategies, coverage |
+| `harness/CI.md` | CI/CD pipeline stages |
+| `harness/STRUCTURE.md` | Directory tree, module placement rules |
+| `harness/VALIDATION.md` | Pre-commit, CI, deployment checklists |
+| `harness/AGENT_BEHAVIOR.md` | Execution loop, tool constraints, multi-agent rules |
+| `harness/TOOL_DEVELOPMENT.md` | Tool interface contract, parameter schema, error handling |
+| `harness/PROMPT_ENGINEERING.md` | System prompt design, tool descriptions, context management |
+| `harness/MULTI_AGENT_PATTERNS.md` | Team/MsgHub/Ralph/SpawnAgent selection and anti-patterns |
+| `harness/OBSERVABILITY.md` | AgentLogger, TraceLogger, event system, debugging |
+| `harness/EVALUATION.md` | Eval case design, grading, metrics |
+| `harness/SECURITY.md` | Sandbox, prompt injection defense, access control |
 
 ## Common Mistakes
 

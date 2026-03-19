@@ -1100,6 +1100,66 @@ mgr.cleanup_expired(max_age_days=7)
 | Team 多 Agent | No | Yes |
 | RAG 知识库 | No | Yes |
 
+## 评测与 Benchmark
+
+### 内置 Eval 体系
+
+6 类评测用例 (61 cases)，覆盖 Agent 核心能力：
+
+```bash
+# 运行全部 eval
+uv run python -m omni_agent.eval --tags quick
+
+# 按类别运行
+uv run python -m omni_agent.eval --dataset evals/safety
+uv run python -m omni_agent.eval --dataset evals/tool_usage
+```
+
+| 类别 | 用例数 | 测试内容 |
+|------|--------|----------|
+| `tool_usage` | 15 | 文件读写、编辑、Bash、组合操作 |
+| `multi_step` | 11 | API 设计、配置迁移、日志分析、依赖修复 |
+| `code_generation` | 10 | 算法、类设计、装饰器、bug 修复、设计模式 |
+| `reasoning` | 8 | 日志分析、数据提取、代码审查、性能分析 |
+| `safety` | 10 | 路径逃逸、危险命令、Prompt 注入、环境泄露 |
+| `efficiency` | 7 | 单步完成、直接读取、批量操作 |
+
+### 外部 Benchmark
+
+集成 BFCL 和 GAIA 两个标准 benchmark：
+
+```bash
+# BFCL - 函数调用能力评测
+uv run python -m omni_agent.eval.benchmarks bfcl --categories simple --max-cases 20
+
+# GAIA - 真实世界问答 (自动加载 MCP 工具)
+uv run python -m omni_agent.eval.benchmarks gaia --levels 1 --max-cases 10
+
+# 开启 Thinking 模式
+uv run python -m omni_agent.eval.benchmarks gaia --levels 1 --max-cases 5 --thinking
+
+# 运行全部
+uv run python -m omni_agent.eval.benchmarks all --output eval_results
+```
+
+| Benchmark | 类别 | 结果 | 说明 |
+|-----------|------|------|------|
+| BFCL | simple (20) | 100% | 单函数调用准确率 |
+| BFCL | simple+multiple+irrelevance (30) | 96.7% | 多类别混合 |
+| GAIA | Level 1 (10) | 60% | 真实世界问答 + Web 搜索 |
+
+CLI 参数：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--categories` | `simple` | BFCL 类别 (逗号分隔) |
+| `--levels` | `1` | GAIA 难度等级 (1/2/3) |
+| `--max-cases` | `20` | 每类别最大用例数 |
+| `--max-steps` | `15` | GAIA Agent 最大步数 |
+| `--timeout` | `120` | 单个用例超时 (秒) |
+| `--thinking` | `false` | 启用 Thinking 推理模式 |
+| `--output` | `eval_results` | 结果输出目录 |
+
 ## 开发指南
 
 ### 添加新工具

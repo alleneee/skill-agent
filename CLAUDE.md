@@ -539,6 +539,40 @@ uv run python -m omni_agent.utils.trace_viewer flow trace_dependency_workflow_20
 
 See `docs/TRACING_GUIDE.md` for detailed usage.
 
+## Evaluation & Benchmarks
+
+### Internal Eval System
+
+Located at `src/omni_agent/eval/`, with test cases in `evals/`:
+
+```bash
+uv run python -m omni_agent.eval --tags quick          # Run quick evals
+uv run python -m omni_agent.eval --dataset evals/safety # Run specific category
+```
+
+**Eval Categories**: `evals/tool_usage/`, `evals/multi_step/`, `evals/code_generation/`, `evals/reasoning/`, `evals/safety/`, `evals/efficiency/` (61 total cases)
+
+**Key Components**:
+- `eval/runner.py`: EvalRunner with IsolatedWorkspace per case
+- `eval/grader.py`: OutcomeGrader with checks: `result_contains`, `result_matches`, `file_exists`, `file_contains`, `file_not_contains`, `file_matches`
+- `eval/isolation.py`: Temp workspace with file/dir setup (supports both text and binary files)
+- `eval/report.py`: EvalReport with terminal output and JSON export
+
+### External Benchmarks (BFCL / GAIA)
+
+Located at `src/omni_agent/eval/benchmarks/`:
+
+```bash
+uv run python -m omni_agent.eval.benchmarks bfcl --categories simple --max-cases 20
+uv run python -m omni_agent.eval.benchmarks gaia --levels 1 --max-cases 10
+uv run python -m omni_agent.eval.benchmarks all --output eval_results
+```
+
+**BFCL** (`benchmarks/bfcl.py`): Downloads from HuggingFace, direct LLM call, AST-based function name matching
+**GAIA** (`benchmarks/gaia.py`): Loads from HuggingFace datasets, full agent loop with MCP tools auto-loaded, official scorer (exact match with normalization)
+
+**LLMClient Thinking Mode**: `LLMClient(thinking=True, thinking_budget=8000)` enables extended thinking. CLI flag: `--thinking`
+
 ## Common Pitfalls
 
 1. **Old Directory Conflicts**: If `omni_agent/` exists at root, rename it (should only be `src/omni_agent/`)
@@ -562,6 +596,24 @@ See `docs/TRACING_GUIDE.md` for detailed usage.
 - `docs/OPENROUTER.md` - OpenRouter integration guide
 - `docs/CURL_EXAMPLES.md` - API request examples
 - API docs available at `/docs` when server is running
+
+### Harness (Engineering Guidelines)
+
+Development specifications in `harness/` directory, read before making changes:
+
+- `harness/ARCHITECTURE.md` - System layering, component relationships, data flow
+- `harness/RULES.md` - Code style, naming, imports, Git workflow
+- `harness/TESTING.md` - Test pyramid, fixtures, mock strategies, coverage requirements
+- `harness/CI.md` - CI/CD pipeline stages and configuration
+- `harness/STRUCTURE.md` - Directory tree, module placement rules
+- `harness/VALIDATION.md` - Pre-commit, CI, deployment checklists
+- `harness/AGENT_BEHAVIOR.md` - Execution loop, tool constraints, multi-agent rules
+- `harness/TOOL_DEVELOPMENT.md` - Tool base class contract, parameter schema design, error handling, testing
+- `harness/PROMPT_ENGINEERING.md` - System prompt structure, XML tags, role/instruction writing, skills progressive disclosure
+- `harness/MULTI_AGENT_PATTERNS.md` - Team/MsgHub/Ralph/SpawnAgent selection guide and anti-patterns
+- `harness/OBSERVABILITY.md` - AgentLogger, TraceLogger, EventEmitter, debugging methods
+- `harness/EVALUATION.md` - Eval case format, grading system, metrics, custom graders
+- `harness/SECURITY.md` - Sandbox isolation, prompt injection defense, file access control, key management
 
 ## Available Tools Reference
 
