@@ -59,25 +59,31 @@ class EventType(Enum):
     """Agent 事件类型.
 
     定义 Agent 执行过程中可能触发的所有事件类型，
-    用于事件驱动的执行流程和日志记录。
+    用于事件驱动的执行流程、流式输出和日志记录。
     """
 
     STEP_START = "step_start"
     STEP_END = "step_end"
-    LLM_REQUEST = "llm_request"
     LLM_RESPONSE = "llm_response"
     TOOL_START = "tool_start"
     TOOL_END = "tool_end"
     USER_INPUT_REQUIRED = "user_input_required"
+    USER_INPUT_RECEIVED = "user_input_received"
     COMPLETION = "completion"
     CANCELLED = "cancelled"
     ERROR = "error"
-    TOKEN_SUMMARY = "token_summary"
     RALPH_ITERATION_START = "ralph_iteration_start"
     RALPH_ITERATION_END = "ralph_iteration_end"
     RALPH_COMPLETION = "ralph_completion"
     PLAN_CREATED = "plan_created"
-    PLAN_STEP_COMPLETED = "plan_step_completed"
+
+    STREAM_STEP = "step"
+    STREAM_THINKING = "thinking"
+    STREAM_CONTENT = "content"
+    STREAM_TOOL_CALL = "tool_call"
+    STREAM_TOOL_RESULT = "tool_result"
+    STREAM_DONE = "done"
+    STREAM_MAX_STEPS = "max_steps_reached"
 
 
 @dataclass
@@ -584,7 +590,7 @@ class AgentLoop:
                 cancel_msg = "Task cancelled by user"
                 state.mark_cancelled(cancel_msg)
                 await self._hooks.trigger_after_run(ctx, cancel_msg, False)
-                yield {"type": "cancelled", "data": {"message": cancel_msg}}
+                yield {"type": EventType.CANCELLED.value, "data": {"message": cancel_msg}}
                 return
 
             state.increment_step()
@@ -593,7 +599,7 @@ class AgentLoop:
             async for event in self._execute_step_stream(state, metadata):
                 yield event
 
-                if event["type"] == "cancelled":
+                if event["type"] == EventType.CANCELLED.value:
                     self._cleanup_incomplete_messages(state)
                     state.mark_cancelled(event["data"].get("message", "Task cancelled"))
                     await self._hooks.trigger_after_run(
@@ -601,16 +607,16 @@ class AgentLoop:
                     )
                     return
 
-                if event["type"] == "done":
+                if event["type"] == EventType.STREAM_DONE.value:
                     state.mark_completed()
                     await self._hooks.trigger_after_run(ctx, event["data"].get("message", ""), True)
                     return
 
-                if event["type"] == "user_input_required":
+                if event["type"] == EventType.USER_INPUT_REQUIRED.value:
                     await self._hooks.trigger_after_run(ctx, "Waiting for user input", True)
                     return
 
-                if event["type"] == "error":
+                if event["type"] == EventType.ERROR.value:
                     state.mark_error(event["data"].get("message", "Unknown error"))
                     await self._hooks.trigger_after_run(
                         ctx, event["data"].get("message", ""), False
@@ -620,7 +626,7 @@ class AgentLoop:
         error_msg = f"Task couldn't be completed after {self._config.max_steps} steps."
         await self._hooks.trigger_after_run(ctx, error_msg, False)
         yield {
-            "type": "error",
+            "type": EventType.ERROR.value,
             "data": {"message": error_msg, "reason": "max_steps_reached"},
         }
 
@@ -809,7 +815,7 @@ class AgentLoop:
         state.messages = await self._token_manager.maybe_summarize_messages(state.messages)
 
         yield {
-            "type": "step",
+            "type": EventType.STREAM_STEP.value,
             "data": {
                 "step": state.current_step,
                 "max_steps": self._config.max_steps,
@@ -833,19 +839,19 @@ class AgentLoop:
                 if event_type == "thinking_delta":
                     delta = event.get("delta", "")
                     thinking_buffer += delta
-                    yield {"type": "thinking", "data": {"delta": delta}}
+                    yield {"type": EventType.STREAM_THINKING.value, "data": {"delta": delta}}
 
                 elif event_type == "content_delta":
                     delta = event.get("delta", "")
                     content_buffer += delta
-                    yield {"type": "content", "data": {"delta": delta}}
+                    yield {"type": EventType.STREAM_CONTENT.value, "data": {"delta": delta}}
 
                 elif event_type == "tool_use":
                     tool_call = event.get("tool_call")
                     if tool_call:
                         tool_calls_buffer.append(tool_call)
                         yield {
-                            "type": "tool_call",
+                            "type": EventType.STREAM_TOOL_CALL.value,
                             "data": {
                                 "tool": tool_call.function.name,
                                 "arguments": tool_call.function.arguments,
@@ -859,7 +865,7 @@ class AgentLoop:
                     break
 
         except Exception as e:
-            yield {"type": "error", "data": {"message": f"LLM call failed: {str(e)}"}}
+            yield {"type": EventType.ERROR.value, "data": {"message": f"LLM call failed: {str(e)}"}}
             return
 
         assistant_msg = Message(
@@ -872,7 +878,7 @@ class AgentLoop:
 
         if not tool_calls_buffer:
             yield {
-                "type": "done",
+                "type": EventType.STREAM_DONE.value,
                 "data": {
                     "message": content_buffer,
                     "steps": state.current_step,
@@ -899,7 +905,7 @@ class AgentLoop:
                 state.mark_waiting_input(request, tool_call.id)
 
                 yield {
-                    "type": "user_input_required",
+                    "type": EventType.USER_INPUT_REQUIRED.value,
                     "data": {
                         "tool_call_id": tool_call.id,
                         "fields": [f.model_dump() for f in input_fields],
@@ -918,7 +924,7 @@ class AgentLoop:
                 return
 
         if self._is_cancelled():
-            yield {"type": "cancelled", "data": {"message": "Task cancelled by user"}}
+            yield {"type": EventType.CANCELLED.value, "data": {"message": "Task cancelled by user"}}
             return
 
         tool_calls_data = [
@@ -928,11 +934,14 @@ class AgentLoop:
 
         for exec_result in results:
             if self._is_cancelled():
-                yield {"type": "cancelled", "data": {"message": "Task cancelled by user"}}
+                yield {
+                    "type": EventType.CANCELLED.value,
+                    "data": {"message": "Task cancelled by user"},
+                }
                 return
 
             yield {
-                "type": "tool_result",
+                "type": EventType.STREAM_TOOL_RESULT.value,
                 "data": {
                     "tool": exec_result.tool_name,
                     "success": exec_result.result.success,
@@ -998,7 +1007,10 @@ class AgentLoop:
         metadata: dict[str, Any] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         if not state.is_waiting_input or not state.paused_tool_call_id:
-            yield {"type": "error", "data": {"message": "Agent is not waiting for user input"}}
+            yield {
+                "type": EventType.ERROR.value,
+                "data": {"message": "Agent is not waiting for user input"},
+            }
             return
 
         tool_msg = Message(
@@ -1381,7 +1393,7 @@ class Agent(AgentBase):
         async def collect_step_start(event: AgentEvent) -> None:
             self.execution_logs.append(
                 {
-                    "type": "step",
+                    "type": EventType.STREAM_STEP.value,
                     "step": event.step,
                     "max_steps": event.data.get("max_steps", self.max_steps),
                     "tokens": event.data.get("tokens", 0),
@@ -1399,7 +1411,7 @@ class Agent(AgentBase):
         async def collect_llm_response(event: AgentEvent) -> None:
             self.execution_logs.append(
                 {
-                    "type": "llm_response",
+                    "type": EventType.LLM_RESPONSE.value,
                     "thinking": event.data.get("thinking"),
                     "content": event.data.get("content"),
                     "has_tool_calls": event.data.get("has_tool_calls", False),
@@ -1417,7 +1429,7 @@ class Agent(AgentBase):
         async def collect_tool_start(event: AgentEvent) -> None:
             self.execution_logs.append(
                 {
-                    "type": "tool_call",
+                    "type": EventType.STREAM_TOOL_CALL.value,
                     "tool": event.data.get("tool"),
                     "arguments": event.data.get("arguments"),
                 }
@@ -1429,7 +1441,7 @@ class Agent(AgentBase):
             else:
                 self.execution_logs.append(
                     {
-                        "type": "tool_result",
+                        "type": EventType.STREAM_TOOL_RESULT.value,
                         "tool": event.data.get("tool"),
                         "success": event.data.get("success"),
                         "content": event.data.get("content"),
@@ -1441,7 +1453,7 @@ class Agent(AgentBase):
         async def collect_user_input(event: AgentEvent) -> None:
             self.execution_logs.append(
                 {
-                    "type": "user_input_required",
+                    "type": EventType.USER_INPUT_REQUIRED.value,
                     "tool_call_id": event.data.get("tool_call_id"),
                     "fields": event.data.get("fields"),
                     "context": event.data.get("context"),
@@ -1451,7 +1463,7 @@ class Agent(AgentBase):
         async def collect_completion(event: AgentEvent) -> None:
             self.execution_logs.append(
                 {
-                    "type": "completion",
+                    "type": EventType.COMPLETION.value,
                     "message": "Task completed successfully",
                     "total_input_tokens": event.data.get("total_input_tokens", 0),
                     "total_output_tokens": event.data.get("total_output_tokens", 0),
@@ -1474,7 +1486,7 @@ class Agent(AgentBase):
             if reason == "max_steps_reached":
                 self.execution_logs.append(
                     {
-                        "type": "max_steps_reached",
+                        "type": EventType.STREAM_MAX_STEPS.value,
                         "message": event.data.get("message"),
                         "total_input_tokens": self._state.total_input_tokens,
                         "total_output_tokens": self._state.total_output_tokens,
@@ -1484,7 +1496,7 @@ class Agent(AgentBase):
             else:
                 self.execution_logs.append(
                     {
-                        "type": "error",
+                        "type": EventType.ERROR.value,
                         "message": event.data.get("message"),
                     }
                 )
@@ -1656,7 +1668,10 @@ class Agent(AgentBase):
             if not task:
                 task = self._get_last_user_message()
             if not task:
-                yield {"type": "error", "data": {"message": "Ralph mode requires a task"}}
+                yield {
+                    "type": EventType.ERROR.value,
+                    "data": {"message": "Ralph mode requires a task"},
+                }
                 return
             async for event in self._run_ralph_stream_internal(task):
                 yield event
@@ -1714,7 +1729,7 @@ class Agent(AgentBase):
 
         self.execution_logs.append(
             {
-                "type": "user_input_received",
+                "type": EventType.USER_INPUT_RECEIVED.value,
                 "tool_call_id": self._state.pending_user_input.tool_call_id,
                 "field_values": field_values,
             }
@@ -1977,7 +1992,7 @@ When you have completed the task, use the `signal_completion` tool or output:
             事件字典，包含 type 和 data 字段
         """
         if not self._ralph_loop:
-            yield {"type": "error", "data": {"message": "Ralph mode is not enabled"}}
+            yield {"type": EventType.ERROR.value, "data": {"message": "Ralph mode is not enabled"}}
             return
 
         self._inject_ralph_tools()
@@ -1988,7 +2003,7 @@ When you have completed the task, use the `signal_completion` tool or output:
             iteration = self._ralph_loop.start_iteration()
 
             yield {
-                "type": "ralph_iteration_start",
+                "type": EventType.RALPH_ITERATION_START.value,
                 "data": {
                     "iteration": iteration,
                     "max_iterations": self._ralph_loop.config.max_iterations,
@@ -2004,13 +2019,13 @@ When you have completed the task, use the `signal_completion` tool or output:
             final_content = ""
             async for event in self._loop.run_stream(self._state, self._get_llm_metadata()):
                 yield event
-                if event["type"] == "done":
+                if event["type"] == EventType.STREAM_DONE.value:
                     final_content = event.get("data", {}).get("message", "")
 
             completion_check = self._ralph_loop.check_completion(final_content)
 
             yield {
-                "type": "ralph_iteration_end",
+                "type": EventType.RALPH_ITERATION_END.value,
                 "data": {
                     "iteration": iteration,
                     "completed": completion_check.completed,
@@ -2020,7 +2035,7 @@ When you have completed the task, use the `signal_completion` tool or output:
 
             if completion_check.completed:
                 yield {
-                    "type": "ralph_completion",
+                    "type": EventType.RALPH_COMPLETION.value,
                     "data": {
                         "iteration": iteration,
                         "reason": completion_check.reason.value

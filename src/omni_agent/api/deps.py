@@ -76,6 +76,48 @@ _sandbox_manager: Optional["SandboxManager"] = None
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
+# ============================================================================
+# 内部工具函数
+# ============================================================================
+
+
+def _ensure_workspace(workspace_dir: str | None = None) -> Path:
+    """确保工作空间目录存在并返回 Path 对象."""
+    workspace_path = Path(workspace_dir or settings.AGENT_WORKSPACE_DIR)
+    workspace_path.mkdir(parents=True, exist_ok=True)
+    return workspace_path
+
+
+def _create_base_tools(workspace_dir: str) -> list[Tool]:
+    """创建基础工具集合.
+
+    包含文件操作、搜索、命令执行、笔记和用户输入工具。
+    """
+    memory_file = str(Path(workspace_dir) / ".agent_memory.json")
+    return [
+        ReadTool(workspace_dir=workspace_dir),
+        WriteTool(workspace_dir=workspace_dir),
+        EditTool(workspace_dir=workspace_dir),
+        ListDirTool(workspace_dir=workspace_dir),
+        GlobTool(workspace_dir=workspace_dir),
+        GrepTool(workspace_dir=workspace_dir),
+        BashTool(),
+        SessionNoteTool(memory_file=memory_file),
+        RecallNoteTool(memory_file=memory_file),
+        GetUserInputTool(),
+    ]
+
+
+def _inject_skills_metadata(system_prompt: str, skills_dir: str, enable_skills: bool) -> str:
+    """将 Skills 元数据注入系统提示词."""
+    if enable_skills:
+        _, skill_loader = create_skill_tools(skills_dir)
+        if skill_loader:
+            skills_metadata = skill_loader.get_skills_metadata_prompt()
+            return system_prompt.replace("{SKILLS_METADATA}", skills_metadata)
+    return system_prompt.replace("{SKILLS_METADATA}", "")
+
+
 async def verify_api_key(api_key: str | None = Security(_api_key_header)) -> None:
     if not settings.API_AUTH_KEY:
         return
@@ -376,22 +418,9 @@ def get_tools(workspace_dir: str | None = None) -> list[Tool]:
     Returns:
         所有可用工具的列表
     """
-    workspace_path = Path(workspace_dir or settings.AGENT_WORKSPACE_DIR)
-    workspace_path.mkdir(parents=True, exist_ok=True)
+    workspace_path = _ensure_workspace(workspace_dir)
 
-    # 基础工具（deepagents 风格的文件系统工具）
-    tools = [
-        ReadTool(workspace_dir=str(workspace_path)),
-        WriteTool(workspace_dir=str(workspace_path)),
-        EditTool(workspace_dir=str(workspace_path)),
-        ListDirTool(workspace_dir=str(workspace_path)),
-        GlobTool(workspace_dir=str(workspace_path)),
-        GrepTool(workspace_dir=str(workspace_path)),
-        BashTool(),
-        SessionNoteTool(memory_file=str(workspace_path / ".agent_memory.json")),
-        RecallNoteTool(memory_file=str(workspace_path / ".agent_memory.json")),
-        GetUserInputTool(),
-    ]
+    tools = _create_base_tools(str(workspace_path))
 
     # Skill 工具
     if settings.ENABLE_SKILLS:
@@ -419,25 +448,12 @@ def get_agent(
     [已废弃] 此方法保留用于向后兼容。
     建议使用 AgentFactory.create_agent() 获取动态配置的 Agent。
     """
-    # 确定工作空间目录
-    workspace_path = Path(settings.AGENT_WORKSPACE_DIR)
-    workspace_path.mkdir(parents=True, exist_ok=True)
-
-    # 获取所有工具
+    workspace_path = _ensure_workspace(settings.AGENT_WORKSPACE_DIR)
     tools = get_tools(str(workspace_path))
 
-    # 加载系统提示词
-    system_prompt = settings.SYSTEM_PROMPT
-
-    # 如果启用则注入 Skills 元数据
-    if settings.ENABLE_SKILLS:
-        _, skill_loader = create_skill_tools(settings.SKILLS_DIR)
-        if skill_loader:
-            skills_metadata = skill_loader.get_skills_metadata_prompt()
-            system_prompt = system_prompt.replace("{SKILLS_METADATA}", skills_metadata)
-    else:
-        # 未启用 Skills 时移除占位符
-        system_prompt = system_prompt.replace("{SKILLS_METADATA}", "")
+    system_prompt = _inject_skills_metadata(
+        settings.SYSTEM_PROMPT, settings.SKILLS_DIR, settings.ENABLE_SKILLS
+    )
 
     # 创建 Agent
     return Agent(
@@ -506,22 +522,15 @@ class AgentFactory:
             current_depth=0,  # 根 Agent 从深度 0 开始
         )
 
-        # 构建系统提示词
         system_prompt = config.system_prompt or self.settings.SYSTEM_PROMPT
-
-        # 如果启用则注入 Skills 元数据
         enable_skills = (
             config.enable_skills
             if config.enable_skills is not None
             else self.settings.ENABLE_SKILLS
         )
-        if enable_skills:
-            _, skill_loader = create_skill_tools(self.settings.SKILLS_DIR)
-            if skill_loader:
-                skills_metadata = skill_loader.get_skills_metadata_prompt()
-                system_prompt = system_prompt.replace("{SKILLS_METADATA}", skills_metadata)
-        else:
-            system_prompt = system_prompt.replace("{SKILLS_METADATA}", "")
+        system_prompt = _inject_skills_metadata(
+            system_prompt, self.settings.SKILLS_DIR, enable_skills
+        )
 
         # 创建 Agent
         return Agent(
@@ -576,18 +585,7 @@ class AgentFactory:
                     GetUserInputTool(),
                 ]
             else:
-                all_base_tools = [
-                    ReadTool(workspace_dir=workspace_dir),
-                    WriteTool(workspace_dir=workspace_dir),
-                    EditTool(workspace_dir=workspace_dir),
-                    ListDirTool(workspace_dir=workspace_dir),
-                    GlobTool(workspace_dir=workspace_dir),
-                    GrepTool(workspace_dir=workspace_dir),
-                    BashTool(),
-                    SessionNoteTool(memory_file=str(Path(workspace_dir) / ".agent_memory.json")),
-                    RecallNoteTool(memory_file=str(Path(workspace_dir) / ".agent_memory.json")),
-                    GetUserInputTool(),
-                ]
+                all_base_tools = _create_base_tools(workspace_dir)
 
             # 构建工具名称映射（支持实际名称和短别名）
             base_tools_map = {}
@@ -727,12 +725,9 @@ def get_builtin_research_team(
     """
     from omni_agent.core.builtin_teams import create_web_research_team
 
-    # 获取所有可用工具（包括 MCP 工具）
-    workspace_path = Path(settings.AGENT_WORKSPACE_DIR)
-    workspace_path.mkdir(parents=True, exist_ok=True)
+    workspace_path = _ensure_workspace(settings.AGENT_WORKSPACE_DIR)
     tools = get_tools(str(workspace_path))
 
-    # 创建并返回团队
     return create_web_research_team(
         llm_client=llm_client,
         available_tools=tools,
@@ -755,8 +750,7 @@ def get_default_team(
     """
     from omni_agent.core.builtin_teams import create_default_team
 
-    workspace_path = Path(settings.AGENT_WORKSPACE_DIR)
-    workspace_path.mkdir(parents=True, exist_ok=True)
+    workspace_path = _ensure_workspace(settings.AGENT_WORKSPACE_DIR)
     tools = get_tools(str(workspace_path))
 
     return create_default_team(

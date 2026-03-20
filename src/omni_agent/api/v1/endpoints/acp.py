@@ -33,6 +33,7 @@ from omni_agent.api.deps import (
     get_settings,
 )
 from omni_agent.core import LLMClient
+from omni_agent.core.agent import EventType
 from omni_agent.core.config import Settings
 from omni_agent.schemas.message import AgentConfig, Message
 
@@ -268,22 +269,20 @@ async def session_prompt_stream(
                 event_data = event.get("data", {})
 
                 # 处理 LLM 思考过程事件（如 Claude 的 extended thinking）
-                if event_type == "thinking":
+                if event_type == EventType.STREAM_THINKING.value:
                     update = ACPAdapter.create_thought_update(
                         session_id,
                         event_data.get("delta", ""),
                     )
                     yield f"data: {json.dumps({'jsonrpc': '2.0', 'method': 'session/update', 'params': update.model_dump(by_alias=True)})}\n\n"
 
-                # 处理响应内容增量事件
-                elif event_type == "content":
+                elif event_type == EventType.STREAM_CONTENT.value:
                     delta = event_data.get("delta", "")
                     content_buffer += delta
                     update = ACPAdapter.create_message_update(session_id, delta)
                     yield f"data: {json.dumps({'jsonrpc': '2.0', 'method': 'session/update', 'params': update.model_dump(by_alias=True)})}\n\n"
 
-                # 处理工具调用开始事件
-                elif event_type == "tool_call":
+                elif event_type == EventType.STREAM_TOOL_CALL.value:
                     tool_name = event_data.get("tool", "unknown")
                     arguments = event_data.get("arguments", {})
                     tool_call_id = f"tc_{uuid4().hex[:8]}"
@@ -296,8 +295,7 @@ async def session_prompt_stream(
                     )
                     yield f"data: {json.dumps({'jsonrpc': '2.0', 'method': 'session/update', 'params': update.model_dump(by_alias=True)})}\n\n"
 
-                # 处理工具执行结果事件
-                elif event_type == "tool_result":
+                elif event_type == EventType.STREAM_TOOL_RESULT.value:
                     tool_call_id = f"tc_{uuid4().hex[:8]}"
                     update = ACPAdapter.create_tool_result_update(
                         session_id,
@@ -308,8 +306,7 @@ async def session_prompt_stream(
                     )
                     yield f"data: {json.dumps({'jsonrpc': '2.0', 'method': 'session/update', 'params': update.model_dump(by_alias=True)})}\n\n"
 
-                # 处理执行完成事件
-                elif event_type == "done":
+                elif event_type == EventType.STREAM_DONE.value:
                     content_buffer = event_data.get("message", content_buffer)
 
             # 更新会话消息历史

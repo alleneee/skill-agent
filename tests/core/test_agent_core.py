@@ -26,15 +26,21 @@ class TestEventType:
         expected = [
             "step_start",
             "step_end",
-            "llm_request",
             "llm_response",
             "tool_start",
             "tool_end",
             "user_input_required",
+            "user_input_received",
             "completion",
             "cancelled",
             "error",
-            "token_summary",
+            "step",
+            "thinking",
+            "content",
+            "tool_call",
+            "tool_result",
+            "done",
+            "max_steps_reached",
         ]
         values = [e.value for e in EventType]
         for exp in expected:
