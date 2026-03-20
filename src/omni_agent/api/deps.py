@@ -27,7 +27,8 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, Security
+from fastapi.security import APIKeyHeader
 
 if TYPE_CHECKING:
     from omni_agent.sandbox.manager import SandboxManager
@@ -70,6 +71,16 @@ _team_session_manager: UnifiedTeamSessionManager | None = None
 # 沙箱管理器（ENABLE_SANDBOX=true 时初始化）
 # 每个 session 对应一个隔离的沙箱实例
 _sandbox_manager: Optional["SandboxManager"] = None
+
+
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def verify_api_key(api_key: str | None = Security(_api_key_header)) -> None:
+    if not settings.API_AUTH_KEY:
+        return
+    if api_key != settings.API_AUTH_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
 def get_settings() -> Settings:

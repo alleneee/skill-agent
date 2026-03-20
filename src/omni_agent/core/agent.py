@@ -23,6 +23,7 @@
 
 import asyncio
 import json
+import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
 from dataclasses import dataclass, field
@@ -30,6 +31,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
+
+logger = logging.getLogger(__name__)
 
 from omni_agent.core.agent_base import AgentBase, AgentStatus
 from omni_agent.core.checkpoint import Checkpoint, CheckpointConfig
@@ -1284,7 +1287,7 @@ class Agent(AgentBase):
                 )
                 self._loop.set_tools(self.tools)
         except Exception:
-            pass
+            logger.warning("MCP tools loading failed", exc_info=True)
         finally:
             self._mcp_initialized = True
 
@@ -1631,7 +1634,7 @@ class Agent(AgentBase):
                 )
             )
         except Exception:
-            pass
+            logger.warning("Plan creation failed", exc_info=True)
 
     def _update_plan_on_completion(self, result: str) -> None:
         plan = Plan.load(self.workspace_dir)

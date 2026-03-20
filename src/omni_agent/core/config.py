@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     # API settings
     API_V1_PREFIX: str = "/api/v1"
     ALLOWED_ORIGINS: list[str] = Field(default_factory=lambda: ["*"])
+    API_AUTH_KEY: str = Field(
+        default="",
+        description="API authentication key. Leave empty to disable auth (dev mode).",
+    )
 
     # LLM settings (supports 100+ providers via LiteLLM)
     # Model naming: "provider/model" e.g. "openai/gpt-4o", "anthropic/claude-3-5-sonnet-20241022"

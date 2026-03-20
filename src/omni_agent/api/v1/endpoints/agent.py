@@ -124,7 +124,9 @@ async def run_agent(
             )
             await session_manager.add_run(request.session_id, run_record)
 
-        raise HTTPException(status_code=500, detail=f"Agent execution failed: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail="Agent execution failed due to an internal error"
+        ) from e
 
 
 @router.post("/run/stream")

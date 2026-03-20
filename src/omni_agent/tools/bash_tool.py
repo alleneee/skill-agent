@@ -33,11 +33,11 @@ WRITE_OUTSIDE_WORKSPACE_PATTERNS = [
 def _is_dangerous_command(command: str, workspace_dir: str | None = None) -> str | None:
     for pattern in DANGEROUS_PATTERNS:
         if pattern.search(command):
-            return f"Blocked: dangerous command pattern detected"
+            return "Blocked: dangerous command pattern detected"
     if workspace_dir:
         for pattern in WRITE_OUTSIDE_WORKSPACE_PATTERNS:
             if pattern.search(command):
-                return f"Blocked: writing to paths outside workspace is not allowed"
+                return "Blocked: writing to paths outside workspace is not allowed"
     return None
 
 

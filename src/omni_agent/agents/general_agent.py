@@ -5,8 +5,11 @@
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from omni_agent.core.agent import Agent
 from omni_agent.core.llm_client import LLMClient
@@ -102,6 +105,7 @@ async def _load_mcp_tools(mcp_config_path: str) -> list[Tool]:
         tools = await load_mcp_tools_async(mcp_config_path)
         return tools or []
     except Exception:
+        logger.warning("Failed to load MCP tools from %s", mcp_config_path, exc_info=True)
         return []
 
 

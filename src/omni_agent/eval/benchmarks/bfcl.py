@@ -13,8 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from omni_agent.eval.report import EvalReport, EvalResult
 from omni_agent.eval.grader import GradeResult
+from omni_agent.eval.report import EvalReport, EvalResult
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,9 @@ class BFCLCase:
 class BFCLConfig:
     categories: list[str] = field(default_factory=lambda: ["simple"])
     max_cases_per_category: int = 50
-    cache_dir: Path = field(default_factory=lambda: Path.home() / ".omni-agent" / "benchmarks" / "bfcl")
+    cache_dir: Path = field(
+        default_factory=lambda: Path.home() / ".omni-agent" / "benchmarks" / "bfcl"
+    )
 
 
 def _download_category(category: str, config: BFCLConfig) -> list[BFCLCase]:
@@ -86,10 +88,7 @@ def _download_category(category: str, config: BFCLConfig) -> list[BFCLCase]:
 
         question_raw = data.get("question", [])
         if isinstance(question_raw, list) and question_raw:
-            if isinstance(question_raw[0], list):
-                messages = question_raw[0]
-            else:
-                messages = question_raw
+            messages = question_raw[0] if isinstance(question_raw[0], list) else question_raw
         else:
             messages = [{"role": "user", "content": str(question_raw)}]
 

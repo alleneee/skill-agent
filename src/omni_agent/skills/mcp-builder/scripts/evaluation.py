@@ -117,7 +117,7 @@ async def agent_loop(
             tool_result = await connection.call_tool(tool_name, tool_input)
             tool_response = (
                 json.dumps(tool_result)
-                if isinstance(tool_result, (dict, list))
+                if isinstance(tool_result, dict | list)
                 else str(tool_result)
             )
         except Exception as e:

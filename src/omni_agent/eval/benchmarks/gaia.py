@@ -36,7 +36,9 @@ class GAIAConfig:
     max_cases_per_level: int = 20
     max_steps: int = 15
     timeout: int = 120
-    cache_dir: Path = field(default_factory=lambda: Path.home() / ".omni-agent" / "benchmarks" / "gaia")
+    cache_dir: Path = field(
+        default_factory=lambda: Path.home() / ".omni-agent" / "benchmarks" / "gaia"
+    )
 
 
 def _load_gaia_dataset(config: GAIAConfig) -> list[GAIACase]:
@@ -88,6 +90,7 @@ def _load_gaia_dataset(config: GAIAConfig) -> list[GAIACase]:
 
 def _normalize_str(s: str) -> str:
     import string
+
     s = re.sub(r"\s", "", s).lower()
     s = s.translate(str.maketrans("", "", string.punctuation))
     return s
@@ -115,9 +118,8 @@ def _grade_gaia_answer(result: str, expected: str) -> GradeResult:
     if _is_number(expected):
         result_num = _normalize_number(result)
         expected_num = _normalize_number(expected)
-        if result_num is not None and expected_num is not None:
-            if result_num == expected_num:
-                return GradeResult.success(reason=f"numeric match: {result_num}")
+        if result_num is not None and expected_num is not None and result_num == expected_num:
+            return GradeResult.success(reason=f"numeric match: {result_num}")
         numbers_in_result = re.findall(r"-?[\d,]+\.?\d*", result)
         for num_str in numbers_in_result:
             n = _normalize_number(num_str)
@@ -136,7 +138,7 @@ def _grade_gaia_answer(result: str, expected: str) -> GradeResult:
                 reason=f"list length mismatch: expected {len(expected_parts)}, got {len(result_parts)}",
             )
         all_match = True
-        for ep, rp in zip(expected_parts, result_parts):
+        for ep, rp in zip(expected_parts, result_parts, strict=False):
             if _is_number(ep):
                 en, rn = _normalize_number(ep), _normalize_number(rp)
                 if en is None or rn is None or en != rn:
@@ -177,6 +179,7 @@ async def run_gaia(
     if not tools:
         try:
             from omni_agent.tools.mcp_loader import load_mcp_tools_async
+
             mcp_tools = await load_mcp_tools_async()
             tools = mcp_tools
             logger.info("Loaded %d MCP tools for GAIA", len(mcp_tools))
@@ -200,6 +203,7 @@ async def run_gaia(
                     data_dir = Path(config.cache_dir / "data")
                     if not (data_dir / case.file_path).exists():
                         from huggingface_hub import snapshot_download
+
                         snapshot_download(
                             repo_id="gaia-benchmark/GAIA",
                             repo_type="dataset",
@@ -278,11 +282,15 @@ async def run_gaia(
         status = "PASS" if eval_result.passed else "FAIL"
         logger.info(
             "GAIA L%d %s: %s (%.1fs)",
-            case.level, case.task_id[:8], status, eval_result.duration,
+            case.level,
+            case.task_id[:8],
+            status,
+            eval_result.duration,
         )
 
     try:
         from omni_agent.tools.mcp_loader import cleanup_mcp_connections
+
         await cleanup_mcp_connections()
     except Exception:
         pass

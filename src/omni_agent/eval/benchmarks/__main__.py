@@ -62,7 +62,8 @@ def parse_args() -> argparse.Namespace:
         help="output directory (default: eval_results)",
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="verbose logging",
     )
@@ -110,7 +111,9 @@ async def main() -> int:
             categories=args.categories.split(","),
             max_cases_per_category=args.max_cases,
         )
-        print(f"Running BFCL benchmark: categories={bfcl_config.categories}, max={bfcl_config.max_cases_per_category}")
+        print(
+            f"Running BFCL benchmark: categories={bfcl_config.categories}, max={bfcl_config.max_cases_per_category}"
+        )
         report = await run_bfcl(llm_client, bfcl_config)
         print(report.to_terminal())
         report.save_json(args.output / "benchmark_bfcl_latest.json")
@@ -125,7 +128,9 @@ async def main() -> int:
             max_steps=args.max_steps,
             timeout=args.timeout,
         )
-        print(f"Running GAIA benchmark: levels={gaia_config.levels}, max={gaia_config.max_cases_per_level}")
+        print(
+            f"Running GAIA benchmark: levels={gaia_config.levels}, max={gaia_config.max_cases_per_level}"
+        )
         report = await run_gaia(llm_client, config=gaia_config)
         print(report.to_terminal())
         report.save_json(args.output / "benchmark_gaia_latest.json")
@@ -135,7 +140,7 @@ async def main() -> int:
     total_cases = sum(r.total for r in reports)
 
     if total_cases > 0:
-        print(f"\nOverall: {total_passed}/{total_cases} ({total_passed/total_cases:.1%})")
+        print(f"\nOverall: {total_passed}/{total_cases} ({total_passed / total_cases:.1%})")
 
     return 0 if all(r.failed == 0 for r in reports) else 1
 

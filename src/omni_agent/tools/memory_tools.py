@@ -76,7 +76,7 @@ class DeepRecallMemoryTool(Tool):
 
                 self._embedding_service = embedding_service
             except Exception:
-                pass
+                logging.getLogger(__name__).debug("Embedding service unavailable", exc_info=True)
         return self._embedding_service
 
     def _get_vector_store(self) -> Any:
@@ -86,7 +86,7 @@ class DeepRecallMemoryTool(Tool):
 
                 self._vector_store = MemoryVectorStore(self._user_id, self._session_id)
             except Exception:
-                pass
+                logging.getLogger(__name__).debug("Vector store unavailable", exc_info=True)
         return self._vector_store
 
     async def execute(

@@ -16,6 +16,23 @@ from typing import Any
 
 from .base import Tool, ToolResult
 
+SENSITIVE_PATTERNS = [
+    re.compile(r"(^|/)\.env(\..+)?$"),
+    re.compile(r"(^|/).*credentials.*", re.IGNORECASE),
+    re.compile(r"(^|/).*secret.*", re.IGNORECASE),
+    re.compile(r"(^|/)\.ssh/"),
+    re.compile(r".*\.pem$"),
+    re.compile(r".*\.key$"),
+    re.compile(r"(^|/)\.git-credentials$"),
+    re.compile(r"(^|/).*\.keystore$"),
+    re.compile(r"(^|/)\.netrc$"),
+    re.compile(r"(^|/)\.pgpass$"),
+]
+
+
+def _is_sensitive_path(path: str) -> bool:
+    return any(pattern.search(path) for pattern in SENSITIVE_PATTERNS)
+
 
 def _resolve_and_validate(path: str, workspace_dir: Path) -> Path:
     file_path = Path(path)
@@ -23,16 +40,27 @@ def _resolve_and_validate(path: str, workspace_dir: Path) -> Path:
         file_path = workspace_dir / file_path
     resolved = file_path.resolve()
     workspace_resolved = workspace_dir.resolve()
-    if not str(resolved).startswith(str(workspace_resolved) + "/") and resolved != workspace_resolved:
+    if (
+        not str(resolved).startswith(str(workspace_resolved) + "/")
+        and resolved != workspace_resolved
+    ):
         raise PermissionError(
             f"Access denied: path '{path}' is outside workspace '{workspace_dir}'"
         )
     if file_path.exists() and file_path.is_symlink():
         target = file_path.readlink().resolve()
-        if not str(target).startswith(str(workspace_resolved) + "/") and target != workspace_resolved:
-            raise PermissionError(
-                f"Access denied: symlink target is outside workspace"
-            )
+        if (
+            not str(target).startswith(str(workspace_resolved) + "/")
+            and target != workspace_resolved
+        ):
+            raise PermissionError("Access denied: symlink target is outside workspace")
+    rel_path = (
+        str(resolved.relative_to(workspace_resolved))
+        if resolved != workspace_resolved
+        else str(resolved.name)
+    )
+    if _is_sensitive_path(rel_path):
+        raise PermissionError(f"Access denied: '{path}' matches a sensitive file pattern")
     return resolved
 
 

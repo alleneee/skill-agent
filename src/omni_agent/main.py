@@ -108,11 +108,11 @@ def create_application() -> FastAPI:
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=settings.ALLOWED_ORIGINS,
         allow_credentials=False,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
-        expose_headers=["*"],
+        expose_headers=["X-Request-ID"],
     )
 
     # Add GZip compression middleware

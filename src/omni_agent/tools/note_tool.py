@@ -7,6 +7,7 @@
 """
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -77,6 +78,9 @@ class SessionNoteTool(Tool):
         try:
             return json.loads(self.memory_file.read_text(encoding="utf-8"))
         except Exception:
+            logging.getLogger(__name__).debug(
+                "Failed to load notes from %s", self.memory_file, exc_info=True
+            )
             return []
 
     def _save_to_file(self, notes: list):

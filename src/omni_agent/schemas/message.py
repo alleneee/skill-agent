@@ -127,9 +127,13 @@ class AgentConfig(BaseModel):
 class AgentRequest(BaseModel):
     """Request to agent endpoint."""
 
-    message: str = Field(..., description="User message/task")
-    session_id: str | None = Field(None, description="Session ID for multi-turn conversation")
-    user_id: str | None = Field("default", description="User ID for memory isolation")
+    message: str = Field(..., max_length=100000, description="User message/task")
+    session_id: str | None = Field(
+        None, max_length=256, description="Session ID for multi-turn conversation"
+    )
+    user_id: str | None = Field(
+        "default", max_length=256, description="User ID for memory isolation"
+    )
 
 
 class AgentResponse(BaseModel):
