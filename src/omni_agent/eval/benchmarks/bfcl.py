@@ -15,6 +15,7 @@ from typing import Any
 
 from omni_agent.eval.grader import GradeResult
 from omni_agent.eval.report import EvalReport, EvalResult
+from omni_agent.schemas.message import Message
 
 logger = logging.getLogger(__name__)
 
@@ -196,8 +197,6 @@ async def run_bfcl(
     for case in all_cases:
         start = time.time()
         try:
-            from omni_agent.schemas.message import Message
-
             prompt = _build_prompt(case)
             response = await llm_client.generate(
                 messages=[Message(role="user", content=prompt)],

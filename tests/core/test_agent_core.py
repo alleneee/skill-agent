@@ -321,30 +321,23 @@ class TestAgentLoopCancellation:
         assert loop._config.cancel_event is event
 
 
+def _make_simple_loop() -> AgentLoop:
+    return AgentLoop(
+        llm_client=MagicMock(),
+        tool_executor=MagicMock(),
+        token_manager=MagicMock(),
+        event_emitter=EventEmitter(),
+    )
+
+
 class TestAgentLoopCleanup:
     def test_cleanup_incomplete_messages_empty(self) -> None:
-        llm = MagicMock()
-        tool_executor = MagicMock()
-        token_manager = MagicMock()
-        loop = AgentLoop(
-            llm_client=llm,
-            tool_executor=tool_executor,
-            token_manager=token_manager,
-            event_emitter=EventEmitter(),
-        )
+        loop = _make_simple_loop()
         state = AgentState()
         assert loop._cleanup_incomplete_messages(state) == 0
 
     def test_cleanup_removes_incomplete_tool_calls(self) -> None:
-        llm = MagicMock()
-        tool_executor = MagicMock()
-        token_manager = MagicMock()
-        loop = AgentLoop(
-            llm_client=llm,
-            tool_executor=tool_executor,
-            token_manager=token_manager,
-            event_emitter=EventEmitter(),
-        )
+        loop = _make_simple_loop()
         state = AgentState()
         state.messages = [
             Message(role="system", content="sys"),
@@ -366,15 +359,7 @@ class TestAgentLoopCleanup:
         assert len(state.messages) == 2
 
     def test_cleanup_keeps_complete_messages(self) -> None:
-        llm = MagicMock()
-        tool_executor = MagicMock()
-        token_manager = MagicMock()
-        loop = AgentLoop(
-            llm_client=llm,
-            tool_executor=tool_executor,
-            token_manager=token_manager,
-            event_emitter=EventEmitter(),
-        )
+        loop = _make_simple_loop()
         state = AgentState()
         state.messages = [
             Message(role="system", content="sys"),

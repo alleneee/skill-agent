@@ -193,6 +193,20 @@ async def run_gaia(
 
     logger.info("Running GAIA benchmark: %d cases", len(cases))
 
+    data_dir = Path(config.cache_dir / "data")
+    needs_files = any(c.file_name and c.file_path for c in cases)
+    if needs_files:
+        try:
+            from huggingface_hub import snapshot_download
+
+            snapshot_download(
+                repo_id="gaia-benchmark/GAIA",
+                repo_type="dataset",
+                local_dir=str(data_dir),
+            )
+        except Exception as e:
+            logger.warning("Could not download GAIA dataset: %s", e)
+
     for case in cases:
         start = time.time()
         try:
@@ -200,15 +214,6 @@ async def run_gaia(
 
             if case.file_name and case.file_path:
                 try:
-                    data_dir = Path(config.cache_dir / "data")
-                    if not (data_dir / case.file_path).exists():
-                        from huggingface_hub import snapshot_download
-
-                        snapshot_download(
-                            repo_id="gaia-benchmark/GAIA",
-                            repo_type="dataset",
-                            local_dir=str(data_dir),
-                        )
                     src = data_dir / case.file_path
                     if src.exists():
                         setup["files"][case.file_name] = src.read_bytes()
