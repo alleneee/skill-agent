@@ -124,16 +124,18 @@ class LLMGrader(BaseGrader):
         self._model = model
 
     async def grade(self, case: EvalCase, workspace: Path, result: str) -> GradeResult:
+        from omni_agent.schemas.message import Message
+
         dimensions = case.grading.get("dimensions", ["completeness", "correctness"])
         criteria = case.grading.get("criteria", "")
 
         prompt = self._build_judge_prompt(case.task, result, dimensions, criteria)
-        response = await self._llm.call(
-            messages=[{"role": "user", "content": prompt}],
-            model=self._model or None,
+        llm_response = await self._llm.generate(
+            messages=[Message(role="user", content=prompt)],
         )
 
-        return self._parse_judge_response(response, dimensions)
+        response = {"content": llm_response.content}
+        return self._parse_judge_response(response)
 
     def _build_judge_prompt(
         self,
@@ -157,17 +159,16 @@ class LLMGrader(BaseGrader):
             f'"dimensions": {{"dim_name": {{"score": float, "reason": str}}}}}}'
         )
 
-    def _parse_judge_response(self, response: dict[str, Any], dimensions: list[str]) -> GradeResult:
+    def _parse_judge_response(self, response: dict[str, Any]) -> GradeResult:
         import json
 
         content = response.get("content", "")
         try:
-            json_match = re.search(r"\{.*\}", content, re.DOTALL)
-            if not json_match:
+            data = self._extract_json(content)
+            if data is None:
                 return GradeResult.failure(
                     reason=f"LLM judge returned unparseable: {content[:200]}"
                 )
-            data = json.loads(json_match.group())
             return GradeResult(
                 passed=data.get("overall_pass", False),
                 score=data.get("overall_score", 0.0),
@@ -176,3 +177,30 @@ class LLMGrader(BaseGrader):
             )
         except (json.JSONDecodeError, KeyError) as e:
             return GradeResult.failure(reason=f"failed to parse LLM judge response: {e}")
+
+    @staticmethod
+    def _extract_json(text: str) -> dict[str, Any] | None:
+        import json
+
+        code_block = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+        if code_block:
+            try:
+                return json.loads(code_block.group(1))
+            except json.JSONDecodeError:
+                pass
+
+        brace_start = text.find("{")
+        if brace_start == -1:
+            return None
+        depth = 0
+        for i in range(brace_start, len(text)):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[brace_start : i + 1])
+                    except json.JSONDecodeError:
+                        break
+        return None
